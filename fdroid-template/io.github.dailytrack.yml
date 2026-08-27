@@ -1,0 +1,8 @@
+appId: io.github.dailytrack
+appName: DailyTrack
+license: Apache-2.0
+categories:
+  - Lifestyle
+  - Health & Fitness
+description: |
+  Offline-first, privacy-first life tracking app. Track your time, food, sleep, exercise, mood, and growth. All data stays on your device. No cloud, no ads, no tracking. Educational health indicators with safe, non-diagnostic language.

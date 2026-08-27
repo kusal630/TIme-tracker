@@ -1,0 +1,3 @@
+-dontwarn javax.annotation.**
+-keep class io.github.dailytrack.data.db.** { *; }
+-keep class io.github.dailytrack.data.model.** { *; }

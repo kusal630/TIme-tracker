@@ -104,7 +104,7 @@ fun DashboardScreen(
                             PieChartData("Recovery", todayCoverage!!.recoverySeconds.toFloat(), Color(0xFF4CAF50)),
                             PieChartData("Wasted", todayCoverage!!.wastedSeconds.toFloat(), Color(0xFFC62828)),
                             PieChartData("Untracked", todayCoverage!!.untrackedSeconds.toFloat(), Color(0xFF757575))
-                        )
+                        ).filter { it.value > 0f }
                     )
                 }
             }
@@ -136,12 +136,15 @@ fun DashboardScreen(
                 }
             }
 
-            if (loopStatus?.isLoopDetected == true) {
+            if (loopStatus?.isLoopDetected == true || loopStatus?.comfortZoneWarning == true) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            containerColor = if (loopStatus?.isLoopDetected == true)
+                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                            else
+                                MaterialTheme.colorScheme.tertiaryContainer
                         )
                     ) {
                         Row(
@@ -149,19 +152,25 @@ fun DashboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Repeat,
+                                if (loopStatus?.isLoopDetected == true) Icons.Default.Repeat else Icons.Default.Warning,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                tint = if (loopStatus?.isLoopDetected == true)
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                else
+                                    MaterialTheme.colorScheme.onTertiaryContainer
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    "Routine Loop Detected",
+                                    if (loopStatus?.isLoopDetected == true) "Routine Loop Detected" else "Comfort Zone Warning",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    "Your routine has been similar for ${loopStatus?.consecutiveDays} days. Consider adding something new.",
+                                    if (loopStatus?.isLoopDetected == true)
+                                        "Your routine has been similar for ${loopStatus?.consecutiveDays} days. Try something new to grow."
+                                    else
+                                        "Your routine lacks variety. Add new activities to break out of your comfort zone.",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -311,56 +320,66 @@ fun TimeTrackingCard(coverage: io.github.dailytrack.engine.TimeCoverage?) {
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                MetricItem(
-                    "Productive",
-                    formatDurationHMS((coverage?.productiveSeconds ?: 0) + (coverage?.learningSeconds ?: 0)),
-                    Color(0xFF2E7D32)
+            val hasTracked = (coverage?.trackedSeconds ?: 0) > 0
+
+            if (hasTracked) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    MetricItem(
+                        "Productive",
+                        formatDurationHMS((coverage?.productiveSeconds ?: 0) + (coverage?.learningSeconds ?: 0)),
+                        Color(0xFF2E7D32)
+                    )
+                    MetricItem(
+                        "Exercise",
+                        formatDurationHMS(coverage?.exerciseSeconds ?: 0),
+                        Color(0xFFE65100)
+                    )
+                    MetricItem(
+                        "Sleep",
+                        formatDurationHMS(coverage?.sleepSeconds ?: 0),
+                        Color(0xFF311B92)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    MetricItem(
+                        "Wasted",
+                        formatDurationHMS(coverage?.wastedSeconds ?: 0),
+                        Color(0xFFC62828)
+                    )
+                    MetricItem(
+                        "Tracked",
+                        formatDurationHMS(coverage?.trackedSeconds ?: 0),
+                        MaterialTheme.colorScheme.primary
+                    )
+                    MetricItem(
+                        "Free",
+                        formatDurationHMS(coverage?.untrackedSeconds ?: 0),
+                        Color(0xFF757575)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                LinearProgressIndicator(
+                    progress = { (coverage?.trackedRatio ?: 0.0).toFloat() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 )
-                MetricItem(
-                    "Exercise",
-                    formatDurationHMS(coverage?.exerciseSeconds ?: 0),
-                    Color(0xFFE65100)
-                )
-                MetricItem(
-                    "Sleep",
-                    formatDurationHMS(coverage?.sleepSeconds ?: 0),
-                    Color(0xFF311B92)
+            } else {
+                Text(
+                    text = "No time tracked today. Start a timer to begin tracking.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                MetricItem(
-                    "Wasted",
-                    formatDurationHMS(coverage?.wastedSeconds ?: 0),
-                    Color(0xFFC62828)
-                )
-                MetricItem(
-                    "Untracked",
-                    formatDurationHMS(coverage?.untrackedSeconds ?: 0),
-                    Color(0xFF757575)
-                )
-                MetricItem(
-                    "Tracked",
-                    formatDurationHMS(coverage?.trackedSeconds ?: 0),
-                    MaterialTheme.colorScheme.primary
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            LinearProgressIndicator(
-                progress = { (coverage?.trackedRatio ?: 0.0).toFloat() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            )
         }
     }
 }

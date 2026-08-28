@@ -4,7 +4,8 @@ import io.github.dailytrack.data.db.entity.SessionEntity
 import kotlin.math.sqrt
 
 class RoutineLoopEngine {
-    private val similarityThreshold = 0.85
+    private val similarityThreshold = 0.75
+    private val minDaysForLoop = 3
 
     fun calculateDailyRoutineVector(
         sessions: List<SessionEntity>,
@@ -18,9 +19,10 @@ class RoutineLoopEngine {
     }
 
     fun cosineSimilarity(vec1: Map<String, Double>, vec2: Map<String, Double>): Double {
-        val keys = vec1.keys + vec2.keys
-        if (keys.isEmpty()) return 1.0
+        if (vec1.isEmpty() && vec2.isEmpty()) return 1.0
+        if (vec1.isEmpty() || vec2.isEmpty()) return 0.0
 
+        val keys = vec1.keys + vec2.keys
         var dotProduct = 0.0
         var norm1 = 0.0
         var norm2 = 0.0
@@ -41,18 +43,35 @@ class RoutineLoopEngine {
         dailyVectors: List<Map<String, Double>>,
         growthScores: List<Double>,
         noveltyScores: List<Double>,
-        daysThreshold: Int = 3
+        daysThreshold: Int = minDaysForLoop
     ): LoopDetectionResult {
-        if (dailyVectors.size < daysThreshold) {
+        if (dailyVectors.size < 2) {
+            return LoopDetectionResult(isLoopDetected = false, similarity = 0.0, consecutiveDays = 0)
+        }
+
+        val activeDays = dailyVectors.filter { it.isNotEmpty() }
+        if (activeDays.size < 2) {
             return LoopDetectionResult(isLoopDetected = false, similarity = 0.0, consecutiveDays = 0)
         }
 
         var consecutiveSimilarDays = 0
         var maxSimilarity = 0.0
+        var totalSimilarity = 0.0
+        var comparisonCount = 0
 
         for (i in 1 until dailyVectors.size) {
-            val similarity = cosineSimilarity(dailyVectors[i - 1], dailyVectors[i])
+            val vec1 = dailyVectors[i - 1]
+            val vec2 = dailyVectors[i]
+
+            if (vec1.isEmpty() || vec2.isEmpty()) {
+                consecutiveSimilarDays = 0
+                continue
+            }
+
+            val similarity = cosineSimilarity(vec1, vec2)
             maxSimilarity = maxOf(maxSimilarity, similarity)
+            totalSimilarity += similarity
+            comparisonCount++
 
             if (similarity >= similarityThreshold) {
                 consecutiveSimilarDays++
@@ -61,19 +80,22 @@ class RoutineLoopEngine {
             }
         }
 
+        val avgSimilarity = if (comparisonCount > 0) totalSimilarity / comparisonCount else 0.0
         val recentGrowthAvg = if (growthScores.isNotEmpty())
-            growthScores.takeLast(daysThreshold).average() else 50.0
+            growthScores.takeLast(daysThreshold).average() else 0.0
         val recentNoveltyAvg = if (noveltyScores.isNotEmpty())
-            noveltyScores.takeLast(daysThreshold).average() else 50.0
+            noveltyScores.takeLast(daysThreshold).average() else 0.0
 
         val isLoopDetected = consecutiveSimilarDays >= daysThreshold &&
-                recentGrowthAvg < 40.0 &&
-                recentNoveltyAvg < 30.0
+                avgSimilarity >= similarityThreshold
+
+        val comfortZoneWarning = avgSimilarity >= 0.65 && recentNoveltyAvg < 20.0
 
         return LoopDetectionResult(
             isLoopDetected = isLoopDetected,
-            similarity = maxSimilarity,
-            consecutiveDays = consecutiveSimilarDays
+            similarity = avgSimilarity,
+            consecutiveDays = consecutiveSimilarDays,
+            comfortZoneWarning = comfortZoneWarning
         )
     }
 }
@@ -81,5 +103,6 @@ class RoutineLoopEngine {
 data class LoopDetectionResult(
     val isLoopDetected: Boolean,
     val similarity: Double,
-    val consecutiveDays: Int
+    val consecutiveDays: Int,
+    val comfortZoneWarning: Boolean = false
 )

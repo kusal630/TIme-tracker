@@ -406,10 +406,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val noveltyScore = when {
+            sessions.isEmpty() -> 0.0
             sessions.size > 5 -> 0.9
             sessions.size > 3 -> 0.7
             sessions.size > 1 -> 0.5
-            else -> 0.2
+            else -> 0.3
         }
 
         val result = growthEngine.calculateGrowthScore(
@@ -432,11 +433,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val dailyVectors = mutableListOf<Map<String, Double>>()
         val growthScores = mutableListOf<Double>()
+        val noveltyScores = mutableListOf<Double>()
 
         for (i in 6 downTo 0) {
             val date = today.minusDays(i.toLong())
             val (dayStart, dayEnd) = getDayRange(date, zone)
             val sessions = sessionRepo.getSessionsForDaySync(dayStart, dayEnd)
+            val pomodoros = pomodoroRepo.getPomodorosForDaySync(dayStart, dayEnd)
 
             val categoryDurations = mutableMapOf<Long, Long>()
             for (session in sessions) {
@@ -445,12 +448,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 categoryDurations[catId] = (categoryDurations[catId] ?: 0L) + duration
             }
 
+            for (pomodoro in pomodoros) {
+                if (pomodoro.isCompleted && pomodoro.categoryId != null) {
+                    val duration = pomodoro.durationMinutes * 60000L
+                    categoryDurations[pomodoro.categoryId] = (categoryDurations[pomodoro.categoryId] ?: 0L) + duration
+                }
+            }
+
             val vector = routineEngine.calculateDailyRoutineVector(sessions, categoryDurations)
             dailyVectors.add(vector)
+
+            val activeSessionCount = sessions.count { !it.isActive }
+            val completedPomodoroCount = pomodoros.count { it.isCompleted }
+            val dayNovelty = when {
+                activeSessionCount + completedPomodoroCount > 5 -> 80.0
+                activeSessionCount + completedPomodoroCount > 3 -> 60.0
+                activeSessionCount + completedPomodoroCount > 1 -> 40.0
+                activeSessionCount + completedPomodoroCount > 0 -> 20.0
+                else -> 0.0
+            }
+            noveltyScores.add(dayNovelty)
             growthScores.add(_growthScore.value)
         }
 
-        val noveltyScores = List(7) { 50.0 }
         _loopStatus.value = routineEngine.detectLoop(dailyVectors, growthScores, noveltyScores)
     }
 

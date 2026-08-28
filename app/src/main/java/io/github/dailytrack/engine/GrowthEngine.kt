@@ -32,12 +32,28 @@ class GrowthEngine(private val weights: GrowthWeights = GrowthWeights()) {
         noveltyScore: Double,
         consecutiveDaysActive: Int
     ): GrowthScoreResult {
+        val hasAnyActivity = learningMinutes > 0 || productiveMinutes > 0 ||
+                exerciseMinutes > 0 || sleepHours > 0 || socialMinutes > 0
+
+        if (!hasAnyActivity && consecutiveDaysActive == 0) {
+            return GrowthScoreResult(
+                totalScore = 0.0,
+                learningComponent = 0.0,
+                productiveComponent = 0.0,
+                exerciseComponent = 0.0,
+                sleepComponent = 0.0,
+                socialComponent = 0.0,
+                noveltyComponent = 0.0,
+                consistencyComponent = 0.0
+            )
+        }
+
         val learningScore = normalize(learningMinutes, 0.0, 120.0)
         val productiveScore = normalize(productiveMinutes, 0.0, 480.0)
         val exerciseScore = normalize(exerciseMinutes, 0.0, 60.0)
         val sleepScore = normalize(sleepHours, 0.0, 8.0).coerceAtMost(1.0)
         val socialScore = normalize(socialMinutes, 0.0, 60.0)
-        val noveltyVal = noveltyScore.coerceIn(0.0, 1.0)
+        val noveltyVal = if (hasAnyActivity) noveltyScore.coerceIn(0.0, 1.0) else 0.0
         val consistencyVal = normalize(consecutiveDaysActive.toDouble(), 0.0, 7.0).coerceAtMost(1.0)
 
         val learningComponent = weights.learning * learningScore * 100.0

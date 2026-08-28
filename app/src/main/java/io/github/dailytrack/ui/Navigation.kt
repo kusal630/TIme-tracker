@@ -44,15 +44,12 @@ fun DailyTrackNavHost() {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
-    BackHandler {
-        if (currentRoute != Screen.Dashboard.route) {
-            navController.navigate(Screen.Dashboard.route) {
-                popUpTo(navController.graph.findStartDestination().id) {
-                    saveState = true
-                }
-                launchSingleTop = true
-                restoreState = true
+    BackHandler(enabled = currentRoute != Screen.Dashboard.route) {
+        navController.navigate(Screen.Dashboard.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                inclusive = false
             }
+            launchSingleTop = true
         }
     }
 

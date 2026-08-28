@@ -27,6 +27,7 @@ class PomodoroForegroundService : Service() {
     private var notificationManager: NotificationManager? = null
     private var timerJob: Job? = null
     private var workColor: Int = 0xFFE94560.toInt()
+    private var breakColor: Int = 0xFFFFAB40.toInt()
 
     companion object {
         const val CHANNEL_WORK = "soultrack_work"
@@ -55,7 +56,7 @@ class PomodoroForegroundService : Service() {
                 timerJob?.cancel()
                 val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
                 prefs.edit().putBoolean("is_running", false).apply()
-                val stopBroadcast = Intent(ACTION_COMPLETE)
+                val stopBroadcast = Intent(ACTION_STOP)
                 stopBroadcast.setPackage(packageName)
                 sendBroadcast(stopBroadcast)
                 notificationManager?.cancel(NOTIFICATION_ID)
@@ -80,6 +81,7 @@ class PomodoroForegroundService : Service() {
             }
             ACTION_COMPLETE_WORK -> {
                 timerJob?.cancel()
+                playCompletionSound()
                 val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
                 prefs.edit().putBoolean("is_running", false).apply()
                 val workBroadcast = Intent(ACTION_COMPLETE_WORK)
@@ -119,6 +121,7 @@ class PomodoroForegroundService : Service() {
             .putLong("start_time", startTime)
             .putInt("duration", durationMinutes)
             .putBoolean("is_break", isBreak)
+            .putInt("work_color", workColor)
             .apply()
 
         val notification = buildNotification()
@@ -150,9 +153,15 @@ class PomodoroForegroundService : Service() {
         )
 
         val action = if (isBreak) ACTION_COMPLETE_BREAK else ACTION_COMPLETE_WORK
-        val completeIntent = PendingIntent.getBroadcast(
+        val completeIntent = PendingIntent.getService(
             this, 2,
             Intent(this, PomodoroForegroundService::class.java).apply { this.action = action },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val stopIntent = PendingIntent.getService(
+            this, 3,
+            Intent(this, PomodoroForegroundService::class.java).apply { this.action = ACTION_STOP },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -167,20 +176,21 @@ class PomodoroForegroundService : Service() {
         val title = if (isBreak) "Break Time" else "Focus Time"
         val subtitle = if (todoTitle.isNotBlank()) todoTitle else "Stay focused!"
 
+        val progress = (elapsed.toFloat() / totalMillis.toFloat()).coerceIn(0f, 1f)
+
         val notificationColor = if (isBreak) {
-            0xFFFFAB40.toInt()
+            breakColor
         } else {
-            val progress = elapsed.toFloat() / totalMillis.toFloat()
-            val fromR = Color.red(workColor)
-            val fromG = Color.green(workColor)
-            val fromB = Color.blue(workColor)
-            val toR = Color.red(0xFFFFAB40.toInt())
-            val toG = Color.green(0xFFFFAB40.toInt())
-            val toB = Color.blue(0xFFFFAB40.toInt())
+            val fromR = Color.red(workColor).toFloat()
+            val fromG = Color.green(workColor).toFloat()
+            val fromB = Color.blue(workColor).toFloat()
+            val toR = Color.red(breakColor).toFloat()
+            val toG = Color.green(breakColor).toFloat()
+            val toB = Color.blue(breakColor).toFloat()
             val r = (fromR + (toR - fromR) * progress).toInt()
             val g = (fromG + (toG - fromG) * progress).toInt()
             val b = (fromB + (toB - fromB) * progress).toInt()
-            Color.rgb(r, g, b)
+            Color.rgb(r.coerceIn(0, 255), g.coerceIn(0, 255), b.coerceIn(0, 255))
         }
 
         return NotificationCompat.Builder(this, channel)
@@ -194,6 +204,7 @@ class PomodoroForegroundService : Service() {
             .setColor(notificationColor)
             .setColorized(true)
             .addAction(android.R.drawable.ic_media_pause, if (isBreak) "Skip Break" else "Complete", completeIntent)
+            .addAction(android.R.drawable.ic_delete, "Stop", stopIntent)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()

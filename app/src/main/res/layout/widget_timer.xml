@@ -54,12 +54,41 @@
         android:textStyle="bold"
         android:fontFamily="monospace" />
 
-    <LinearLayout
+    <TextView
+        android:id="@+id/widget_quote"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_timer"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:text=""
+        android:textColor="#B0FFFFFF"
+        android:textSize="11sp"
+        android:fontFamily="serif"
+        android:fontStyle="italic"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/widget_quote_author"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_quote"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="2dp"
+        android:text=""
+        android:textColor="#80FFFFFF"
+        android:textSize="9sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_quote_author"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"
         android:gravity="center"
         android:orientation="horizontal">
 

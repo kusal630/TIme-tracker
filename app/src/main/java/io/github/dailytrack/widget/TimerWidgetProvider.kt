@@ -7,6 +7,7 @@ import android.content.Intent
 import android.widget.RemoteViews
 import io.github.dailytrack.R
 import io.github.dailytrack.SoulTrackApp
+import io.github.dailytrack.data.api.QuotesApi
 import io.github.dailytrack.data.db.entity.SessionEntity
 import io.github.dailytrack.service.TimerForegroundService
 import kotlinx.coroutines.*
@@ -19,6 +20,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
         const val ACTION_RESET = "io.github.dailytrack.ACTION_WIDGET_RESET"
         const val ACTION_UPDATE = "io.github.dailytrack.ACTION_WIDGET_UPDATE"
         const val ACTION_CYCLE_CATEGORY = "io.github.dailytrack.ACTION_CYCLE_CATEGORY"
+        const val ACTION_NEXT_QUOTE = "io.github.dailytrack.ACTION_NEXT_QUOTE"
 
         private val widgetCategories = listOf(
             Pair("Productive", "PRODUCTIVE"),
@@ -94,6 +96,22 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     db.sessionDao().insert(session)
                 }
 
+                CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+                    val quote = QuotesApi.getRandomQuote()
+                    val quotePrefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+                    quotePrefs.edit()
+                        .putString("widget_quote", quote.text)
+                        .putString("widget_quote_author", quote.author)
+                        .apply()
+
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    val componentName = android.content.ComponentName(context, TimerWidgetProvider::class.java)
+                    val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                    for (appWidgetId in appWidgetIds) {
+                        updateAppWidget(context, appWidgetManager, appWidgetId)
+                    }
+                }
+
                 val updateIntent = Intent(context, TimerWidgetProvider::class.java).apply {
                     action = ACTION_UPDATE
                 }
@@ -152,6 +170,24 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 context.sendBroadcast(updateIntent)
             }
 
+            ACTION_NEXT_QUOTE -> {
+                CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+                    val quote = QuotesApi.getRandomQuote()
+                    val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putString("widget_quote", quote.text)
+                        .putString("widget_quote_author", quote.author)
+                        .apply()
+
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    val componentName = android.content.ComponentName(context, TimerWidgetProvider::class.java)
+                    val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                    for (appWidgetId in appWidgetIds) {
+                        updateAppWidget(context, appWidgetManager, appWidgetId)
+                    }
+                }
+            }
+
             ACTION_UPDATE -> {
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val componentName = android.content.ComponentName(context, TimerWidgetProvider::class.java)
@@ -176,9 +212,21 @@ class TimerWidgetProvider : AppWidgetProvider() {
         val sessionName = prefs.getString("session_name", "Ready to start") ?: "Ready to start"
         val categoryName = prefs.getString("category_name", "") ?: ""
         val categoryIndex = prefs.getInt("category_index", 0)
+        val quoteText = prefs.getString("widget_quote", "") ?: ""
+        val quoteAuthor = prefs.getString("widget_quote_author", "") ?: ""
 
         views.setTextViewText(R.id.widget_session_name, sessionName)
         views.setTextViewText(R.id.widget_category, widgetCategories[categoryIndex].first)
+
+        if (quoteText.isNotBlank()) {
+            views.setTextViewText(R.id.widget_quote, "\"$quoteText\"")
+            views.setTextViewText(R.id.widget_quote_author, "— $quoteAuthor")
+            views.setViewVisibility(R.id.widget_quote, android.view.View.VISIBLE)
+            views.setViewVisibility(R.id.widget_quote_author, android.view.View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.widget_quote, android.view.View.GONE)
+            views.setViewVisibility(R.id.widget_quote_author, android.view.View.GONE)
+        }
 
         if (isRunning && startTime > 0) {
             val elapsed = System.currentTimeMillis() - startTime
@@ -208,6 +256,15 @@ class TimerWidgetProvider : AppWidgetProvider() {
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_category, categoryPendingIntent)
+
+        val quoteClickIntent = Intent(context, TimerWidgetProvider::class.java).apply {
+            action = ACTION_NEXT_QUOTE
+        }
+        val quotePendingIntent = android.app.PendingIntent.getBroadcast(
+            context, 5, quoteClickIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_quote, quotePendingIntent)
 
         val startIntent = Intent(context, TimerWidgetProvider::class.java).apply {
             action = ACTION_START

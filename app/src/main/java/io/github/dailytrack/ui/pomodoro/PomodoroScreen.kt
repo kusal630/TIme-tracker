@@ -173,6 +173,30 @@ fun PomodoroScreen(
         label = "progress"
     )
 
+    val animatedQuoteColor by animateColorAsState(
+        targetValue = quoteColor,
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "quote_color"
+    )
+
+    val animatedQuoteTextColor by animateColorAsState(
+        targetValue = quoteColor,
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "quote_text_color"
+    )
+
+    val animatedQuoteAuthorColor by animateColorAsState(
+        targetValue = quoteColor.copy(alpha = 0.7f),
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "quote_author_color"
+    )
+
+    val animatedStartButtonColor by animateColorAsState(
+        targetValue = quoteColor,
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "start_button_color"
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -295,7 +319,7 @@ fun PomodoroScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = quoteColor.copy(alpha = 0.1f)
+                            containerColor = animatedQuoteColor.copy(alpha = 0.1f)
                         )
                     ) {
                         Column(
@@ -307,7 +331,7 @@ fun PomodoroScreen(
                             Text(
                                 text = "\"",
                                 style = MaterialTheme.typography.headlineLarge,
-                                color = quoteColor,
+                                color = animatedQuoteTextColor,
                                 fontWeight = FontWeight.Bold
                             )
                             AnimatedContent(
@@ -322,7 +346,7 @@ fun PomodoroScreen(
                                     text = quote,
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Center,
-                                    color = quoteColor,
+                                    color = animatedQuoteTextColor,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -339,7 +363,7 @@ fun PomodoroScreen(
                                     Text(
                                         text = "— $author",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = quoteColor.copy(alpha = 0.7f)
+                                        color = animatedQuoteAuthorColor
                                     )
                                 }
                             }
@@ -442,7 +466,7 @@ fun PomodoroScreen(
                             onClick = {
                                 showFlash = true
                                 flashAlpha = 1f
-                                flashColor = quoteColor
+                                flashColor = animatedQuoteColor
                                 
                                 coroutineScope.launch {
                                     delay(500)
@@ -473,7 +497,7 @@ fun PomodoroScreen(
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = quoteColor
+                                containerColor = animatedStartButtonColor
                             )
                         ) {
                             Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp))

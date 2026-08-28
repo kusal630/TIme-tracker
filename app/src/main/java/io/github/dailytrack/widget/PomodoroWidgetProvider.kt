@@ -19,8 +19,11 @@ package io.github.dailytrack.widget
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.RemoteViews
 import io.github.dailytrack.R
 import io.github.dailytrack.service.PomodoroForegroundService
@@ -37,6 +40,7 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
         fun updateWidgets(context: Context) {
             val intent = Intent(context, PomodoroWidgetProvider::class.java).apply {
                 action = ACTION_UPDATE
+                component = ComponentName(context, PomodoroWidgetProvider::class.java)
             }
             context.sendBroadcast(intent)
         }
@@ -57,6 +61,13 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
 
         when (intent.action) {
             ACTION_START -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val hasPermission = context.checkSelfPermission(
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (!hasPermission) return
+                }
+
                 val prefs = context.getSharedPreferences("pom_widget_prefs", Context.MODE_PRIVATE)
                 val startTime = System.currentTimeMillis()
                 val duration = 25
@@ -67,7 +78,7 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
                     putExtra(PomodoroForegroundService.EXTRA_TODO_TITLE, "Quick Focus")
                     putExtra(PomodoroForegroundService.EXTRA_IS_BREAK, false)
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(serviceIntent)
                 } else {
                     context.startService(serviceIntent)
@@ -80,17 +91,14 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
                     .putBoolean("is_break", false)
                     .apply()
 
-                val updateIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
-                    action = ACTION_UPDATE
-                }
-                context.sendBroadcast(updateIntent)
+                updateAllWidgets(context)
             }
 
             ACTION_STOP -> {
                 val stopIntent = Intent(context, PomodoroForegroundService::class.java).apply {
                     action = PomodoroForegroundService.ACTION_STOP
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(stopIntent)
                 } else {
                     context.startService(stopIntent)
@@ -99,17 +107,14 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
                 val prefs = context.getSharedPreferences("pom_widget_prefs", Context.MODE_PRIVATE)
                 prefs.edit().putBoolean("is_running", false).apply()
 
-                val updateIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
-                    action = ACTION_UPDATE
-                }
-                context.sendBroadcast(updateIntent)
+                updateAllWidgets(context)
             }
 
             ACTION_RESET -> {
                 val stopIntent = Intent(context, PomodoroForegroundService::class.java).apply {
                     action = PomodoroForegroundService.ACTION_STOP
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(stopIntent)
                 } else {
                     context.startService(stopIntent)
@@ -123,20 +128,21 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
                     .putBoolean("is_break", false)
                     .apply()
 
-                val updateIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
-                    action = ACTION_UPDATE
-                }
-                context.sendBroadcast(updateIntent)
+                updateAllWidgets(context)
             }
 
             ACTION_UPDATE -> {
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val componentName = android.content.ComponentName(context, PomodoroWidgetProvider::class.java)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                for (appWidgetId in appWidgetIds) {
-                    updateAppWidget(context, appWidgetManager, appWidgetId)
-                }
+                updateAllWidgets(context)
             }
+        }
+    }
+
+    private fun updateAllWidgets(context: Context) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val componentName = ComponentName(context, PomodoroWidgetProvider::class.java)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        for (appWidgetId in appWidgetIds) {
+            updateAppWidget(context, appWidgetManager, appWidgetId)
         }
     }
 
@@ -195,6 +201,7 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
 
         val startIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
             action = ACTION_START
+            component = ComponentName(context, PomodoroWidgetProvider::class.java)
         }
         val startPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 12, startIntent,
@@ -204,6 +211,7 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
 
         val stopIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
             action = ACTION_STOP
+            component = ComponentName(context, PomodoroWidgetProvider::class.java)
         }
         val stopPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 13, stopIntent,
@@ -213,6 +221,7 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
 
         val resetIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
             action = ACTION_RESET
+            component = ComponentName(context, PomodoroWidgetProvider::class.java)
         }
         val resetPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 14, resetIntent,
@@ -222,6 +231,7 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
 
         val rootClickIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
             action = ACTION_UPDATE
+            component = ComponentName(context, PomodoroWidgetProvider::class.java)
         }
         val rootPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 20, rootClickIntent,

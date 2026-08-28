@@ -19,8 +19,11 @@ package io.github.dailytrack.widget
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.RemoteViews
 import io.github.dailytrack.R
 import io.github.dailytrack.SoulTrackApp
@@ -50,6 +53,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
         fun updateWidgets(context: Context) {
             val intent = Intent(context, TimerWidgetProvider::class.java).apply {
                 action = ACTION_UPDATE
+                component = ComponentName(context, TimerWidgetProvider::class.java)
             }
             context.sendBroadcast(intent)
         }
@@ -74,12 +78,20 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 val categoryIndex = prefs.getInt("category_index", 0)
                 val (catName, catType) = widgetCategories[categoryIndex]
 
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val hasPermission = context.checkSelfPermission(
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (!hasPermission) return
+                }
+
                 val startIntent = Intent(context, TimerForegroundService::class.java).apply {
                     putExtra(TimerForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
                     putExtra(TimerForegroundService.EXTRA_TITLE, "Quick Session")
                     putExtra(TimerForegroundService.EXTRA_CATEGORY, catName)
+                    putExtra(TimerForegroundService.EXTRA_CATEGORY_TYPE, catType)
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(startIntent)
                 } else {
                     context.startService(startIntent)
@@ -121,25 +133,19 @@ class TimerWidgetProvider : AppWidgetProvider() {
                         .putString("widget_quote_author", quote.author)
                         .apply()
 
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-                    val componentName = android.content.ComponentName(context, TimerWidgetProvider::class.java)
-                    val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                    for (appWidgetId in appWidgetIds) {
-                        updateAppWidget(context, appWidgetManager, appWidgetId)
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context)
                     }
                 }
 
-                val updateIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-                    action = ACTION_UPDATE
-                }
-                context.sendBroadcast(updateIntent)
+                updateAllWidgets(context)
             }
 
             ACTION_STOP -> {
                 val stopIntent = Intent(context, TimerForegroundService::class.java).apply {
                     action = TimerForegroundService.ACTION_STOP
                 }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(stopIntent)
                 } else {
                     context.startService(stopIntent)
@@ -153,10 +159,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
                 prefs.edit().putBoolean("is_running", false).apply()
 
-                val updateIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-                    action = ACTION_UPDATE
-                }
-                context.sendBroadcast(updateIntent)
+                updateAllWidgets(context)
             }
 
             ACTION_RESET -> {
@@ -169,10 +172,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     .putString("category_type", "")
                     .apply()
 
-                val updateIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-                    action = ACTION_UPDATE
-                }
-                context.sendBroadcast(updateIntent)
+                updateAllWidgets(context)
             }
 
             ACTION_CYCLE_CATEGORY -> {
@@ -181,10 +181,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 index = (index + 1) % widgetCategories.size
                 prefs.edit().putInt("category_index", index).apply()
 
-                val updateIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-                    action = ACTION_UPDATE
-                }
-                context.sendBroadcast(updateIntent)
+                updateAllWidgets(context)
             }
 
             ACTION_NEXT_QUOTE -> {
@@ -196,23 +193,24 @@ class TimerWidgetProvider : AppWidgetProvider() {
                         .putString("widget_quote_author", quote.author)
                         .apply()
 
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-                    val componentName = android.content.ComponentName(context, TimerWidgetProvider::class.java)
-                    val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                    for (appWidgetId in appWidgetIds) {
-                        updateAppWidget(context, appWidgetManager, appWidgetId)
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context)
                     }
                 }
             }
 
             ACTION_UPDATE -> {
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val componentName = android.content.ComponentName(context, TimerWidgetProvider::class.java)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                for (appWidgetId in appWidgetIds) {
-                    updateAppWidget(context, appWidgetManager, appWidgetId)
-                }
+                updateAllWidgets(context)
             }
+        }
+    }
+
+    private fun updateAllWidgets(context: Context) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val componentName = ComponentName(context, TimerWidgetProvider::class.java)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        for (appWidgetId in appWidgetIds) {
+            updateAppWidget(context, appWidgetManager, appWidgetId)
         }
     }
 
@@ -267,6 +265,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
         val categoryClickIntent = Intent(context, TimerWidgetProvider::class.java).apply {
             action = ACTION_CYCLE_CATEGORY
+            component = ComponentName(context, TimerWidgetProvider::class.java)
         }
         val categoryPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 10, categoryClickIntent,
@@ -276,6 +275,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
         val quoteClickIntent = Intent(context, TimerWidgetProvider::class.java).apply {
             action = ACTION_NEXT_QUOTE
+            component = ComponentName(context, TimerWidgetProvider::class.java)
         }
         val quotePendingIntent = android.app.PendingIntent.getBroadcast(
             context, 11, quoteClickIntent,
@@ -285,6 +285,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
         val startIntent = Intent(context, TimerWidgetProvider::class.java).apply {
             action = ACTION_START
+            component = ComponentName(context, TimerWidgetProvider::class.java)
         }
         val startPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 12, startIntent,
@@ -294,6 +295,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
         val stopIntent = Intent(context, TimerWidgetProvider::class.java).apply {
             action = ACTION_STOP
+            component = ComponentName(context, TimerWidgetProvider::class.java)
         }
         val stopPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 13, stopIntent,
@@ -303,6 +305,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
         val resetIntent = Intent(context, TimerWidgetProvider::class.java).apply {
             action = ACTION_RESET
+            component = ComponentName(context, TimerWidgetProvider::class.java)
         }
         val resetPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 14, resetIntent,
@@ -312,6 +315,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
         val rootClickIntent = Intent(context, TimerWidgetProvider::class.java).apply {
             action = ACTION_UPDATE
+            component = ComponentName(context, TimerWidgetProvider::class.java)
         }
         val rootPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 20, rootClickIntent,

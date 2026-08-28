@@ -19,6 +19,7 @@ package io.github.dailytrack.widget
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
@@ -40,6 +41,7 @@ class QuoteWidgetProvider : AppWidgetProvider() {
         fun updateWidgets(context: Context) {
             val intent = Intent(context, QuoteWidgetProvider::class.java).apply {
                 action = ACTION_UPDATE
+                component = ComponentName(context, QuoteWidgetProvider::class.java)
             }
             context.sendBroadcast(intent)
         }
@@ -79,17 +81,7 @@ class QuoteWidgetProvider : AppWidgetProvider() {
                             )
                         }
                         withContext(Dispatchers.Main) {
-                            val appWidgetManager = AppWidgetManager.getInstance(context)
-                            val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
-                            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                            for (appWidgetId in appWidgetIds) {
-                                val views = RemoteViews(context.packageName, R.layout.widget_quote)
-                                views.setTextViewText(R.id.widget_btn_save, "SAVED")
-                                appWidgetManager.updateAppWidget(appWidgetId, views)
-                                delay(1500)
-                                views.setTextViewText(R.id.widget_btn_save, "SAVE")
-                                appWidgetManager.updateAppWidget(appWidgetId, views)
-                            }
+                            updateAllWidgets(context)
                         }
                     }
                 }
@@ -97,33 +89,27 @@ class QuoteWidgetProvider : AppWidgetProvider() {
 
             ACTION_UPDATE -> {
                 checkAndRefreshQuote(context)
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                for (appWidgetId in appWidgetIds) {
-                    updateAppWidget(context, appWidgetManager, appWidgetId)
-                }
+                updateAllWidgets(context)
             }
 
             Intent.ACTION_SCREEN_ON -> {
                 checkAndRefreshQuote(context)
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                for (appWidgetId in appWidgetIds) {
-                    updateAppWidget(context, appWidgetManager, appWidgetId)
-                }
+                updateAllWidgets(context)
             }
 
             Intent.ACTION_USER_PRESENT -> {
                 checkAndRefreshQuote(context)
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                for (appWidgetId in appWidgetIds) {
-                    updateAppWidget(context, appWidgetManager, appWidgetId)
-                }
+                updateAllWidgets(context)
             }
+        }
+    }
+
+    private fun updateAllWidgets(context: Context) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val componentName = ComponentName(context, QuoteWidgetProvider::class.java)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        for (appWidgetId in appWidgetIds) {
+            updateAppWidget(context, appWidgetManager, appWidgetId)
         }
     }
 
@@ -147,11 +133,8 @@ class QuoteWidgetProvider : AppWidgetProvider() {
                 .putLong("last_refresh_time", System.currentTimeMillis())
                 .apply()
 
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
-            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-            for (appWidgetId in appWidgetIds) {
-                updateAppWidget(context, appWidgetManager, appWidgetId)
+            withContext(Dispatchers.Main) {
+                updateAllWidgets(context)
             }
         }
     }
@@ -178,6 +161,7 @@ class QuoteWidgetProvider : AppWidgetProvider() {
 
         val nextIntent = Intent(context, QuoteWidgetProvider::class.java).apply {
             action = ACTION_NEXT_QUOTE
+            component = ComponentName(context, QuoteWidgetProvider::class.java)
         }
         val nextPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 0, nextIntent,
@@ -187,6 +171,7 @@ class QuoteWidgetProvider : AppWidgetProvider() {
 
         val saveIntent = Intent(context, QuoteWidgetProvider::class.java).apply {
             action = ACTION_SAVE_QUOTE
+            component = ComponentName(context, QuoteWidgetProvider::class.java)
         }
         val savePendingIntent = android.app.PendingIntent.getBroadcast(
             context, 1, saveIntent,
@@ -196,6 +181,7 @@ class QuoteWidgetProvider : AppWidgetProvider() {
 
         val rootClickIntent = Intent(context, QuoteWidgetProvider::class.java).apply {
             action = ACTION_UPDATE
+            component = ComponentName(context, QuoteWidgetProvider::class.java)
         }
         val rootPendingIntent = android.app.PendingIntent.getBroadcast(
             context, 20, rootClickIntent,

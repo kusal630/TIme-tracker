@@ -45,6 +45,8 @@ fun TodoScreen(
     val overdueCount by viewModel.overdueCount.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(TodoFilter.ALL) }
+    var showPriorityWarning by remember { mutableStateOf(false) }
+    var pendingPomodoroTodo by remember { mutableStateOf<TodoEntity?>(null) }
 
     val filteredTodos = remember(activeTodos, activeFilter) {
         when (activeFilter) {
@@ -105,7 +107,17 @@ fun TodoScreen(
                         categories = categories,
                         onComplete = { viewModel.completeTodo(todo.id) },
                         onDelete = { viewModel.deleteTodo(todo) },
-                        onStartPomodoro = { viewModel.startPomodoro(todo.id, todo.categoryId, 25) },
+                        onStartPomodoro = {
+                            val higherPending = activeTodos.filter {
+                                it.priority > todo.priority && it.id != todo.id
+                            }
+                            if (higherPending.isNotEmpty() && todo.priority < 3) {
+                                pendingPomodoroTodo = todo
+                                showPriorityWarning = true
+                            } else {
+                                viewModel.startPomodoro(todo.id, todo.categoryId, 25)
+                            }
+                        },
                         onEdit = { viewModel.updateTodo(it) },
                         viewModel = viewModel
                     )
@@ -174,6 +186,99 @@ fun TodoScreen(
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
+    }
+
+    if (showPriorityWarning && pendingPomodoroTodo != null) {
+        val higherTasks = activeTodos.filter {
+            it.priority > pendingPomodoroTodo!!.priority && it.id != pendingPomodoroTodo!!.id
+        }
+        val priorityLabel = when (pendingPomodoroTodo!!.priority) {
+            2 -> "Medium"
+            1 -> "Low"
+            else -> "None"
+        }
+        val higherLabel = when (higherTasks.maxOfOrNull { it.priority }) {
+            3 -> "High"
+            2 -> "Medium"
+            else -> "higher"
+        }
+
+        AlertDialog(
+            onDismissRequest = { showPriorityWarning = false; pendingPomodoroTodo = null },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFF57C00)) },
+            title = { Text("Priority Warning") },
+            text = {
+                Column {
+                    Text(
+                        "You're starting a ${priorityLabel} priority task, but you have ${higherTasks.size} $higherLabel priority task(s) pending:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    higherTasks.take(3).forEach { task ->
+                        Row(
+                            modifier = Modifier.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                color = when (task.priority) {
+                                    3 -> Color(0xFFE94560).copy(alpha = 0.15f)
+                                    2 -> Color(0xFFF57C00).copy(alpha = 0.15f)
+                                    else -> Color(0xFF4CAF50).copy(alpha = 0.15f)
+                                },
+                                shape = MaterialTheme.shapes.extraSmall
+                            ) {
+                                Text(
+                                    text = when (task.priority) {
+                                        3 -> "HIGH"
+                                        2 -> "MED"
+                                        else -> "LOW"
+                                    },
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = when (task.priority) {
+                                        3 -> Color(0xFFE94560)
+                                        2 -> Color(0xFFF57C00)
+                                        else -> Color(0xFF4CAF50)
+                                    },
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(task.title, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    if (higherTasks.size > 3) {
+                        Text(
+                            "...and ${higherTasks.size - 3} more",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Consider completing higher priority tasks first.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingPomodoroTodo?.let { todo ->
+                        viewModel.startPomodoro(todo.id, todo.categoryId, 25)
+                    }
+                    showPriorityWarning = false
+                    pendingPomodoroTodo = null
+                }) {
+                    Text("Start Anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPriorityWarning = false; pendingPomodoroTodo = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showAddDialog) {
@@ -550,7 +655,7 @@ fun EditTodoDialog(
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                 OutlinedTextField(value = estimatedMinutes, onValueChange = { estimatedMinutes = it }, label = { Text("Estimated minutes") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
-                Text("Priority", style = MaterialTheme.typography.labelMedium)
+                Text("Priority *", style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0 to "None", 1 to "Low", 2 to "Medium", 3 to "High").forEach { (p, label) ->
                         FilterChip(
@@ -638,7 +743,7 @@ fun AddTodoDialog(
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title *") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
 
-                Text("Priority", style = MaterialTheme.typography.labelMedium)
+                Text("Priority *", style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0 to "None", 1 to "Low", 2 to "Medium", 3 to "High").forEach { (p, label) ->
                         FilterChip(

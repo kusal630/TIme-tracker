@@ -20,18 +20,18 @@ class DeadlineCheckWorker(
     companion object {
         const val CHANNEL_ID = "soultrack_deadlines"
         const val WORK_NAME = "deadline_check"
-        
+
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
                 .setRequiresBatteryNotLow(true)
                 .build()
-            
+
             val workRequest = PeriodicWorkRequestBuilder<DeadlineCheckWorker>(
                 15, TimeUnit.MINUTES
             )
                 .setConstraints(constraints)
                 .build()
-            
+
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
@@ -43,26 +43,54 @@ class DeadlineCheckWorker(
     override suspend fun doWork(): Result {
         val db = (applicationContext as SoulTrackApp).database
         val todoDao = db.todoDao()
-        
+
         val now = System.currentTimeMillis()
-        val upcomingDeadline = now + 24 * 60 * 60 * 1000
-        
-        val upcomingTodos = todoDao.getTodosWithDeadlineApproaching(now, upcomingDeadline)
-        
-        if (upcomingTodos.isNotEmpty()) {
-            createNotificationChannel()
-            
-            for (todo in upcomingTodos) {
-                val hoursUntilDeadline = ((todo.deadline!! - now) / (60 * 60 * 1000)).toInt()
-                
-                sendNotification(
-                    todoId = todo.id.toInt(),
-                    title = "Task Deadline Approaching",
-                    message = "\"${todo.title}\" is due in $hoursUntilDeadline hours"
-                )
-            }
+        val oneHourFromNow = now + 60 * 60 * 1000
+        val twentyFourHoursFromNow = now + 24 * 60 * 60 * 1000
+
+        createNotificationChannel()
+
+        val overdueTodos = todoDao.getTodosWithDeadlineApproaching(Long.MIN_VALUE, now)
+        for (todo in overdueTodos) {
+            if (todo.isCompleted) continue
+            val hoursOverdue = ((now - todo.deadline!!) / (60 * 60 * 1000)).toInt()
+            sendNotification(
+                todoId = todo.id.toInt() + 10000,
+                title = "Task Overdue!",
+                message = "\"${todo.title}\" was due $hoursOverdue hours ago",
+                priority = NotificationCompat.PRIORITY_HIGH
+            )
         }
-        
+
+        val urgentTodos = todoDao.getTodosWithDeadlineApproaching(now, oneHourFromNow)
+        for (todo in urgentTodos) {
+            if (todo.isCompleted) continue
+            val minutesUntil = ((todo.deadline!! - now) / (60 * 1000)).toInt()
+            sendNotification(
+                todoId = todo.id.toInt() + 20000,
+                title = "Deadline in $minutesUntil minutes",
+                message = "\"${todo.title}\" is due very soon!",
+                priority = NotificationCompat.PRIORITY_HIGH
+            )
+        }
+
+        val upcomingTodos = todoDao.getTodosWithDeadlineApproaching(oneHourFromNow, twentyFourHoursFromNow)
+        for (todo in upcomingTodos) {
+            if (todo.isCompleted) continue
+            val hoursUntil = ((todo.deadline!! - now) / (60 * 60 * 1000)).toInt()
+            val priorityLabel = when (todo.priority) {
+                3 -> " [HIGH]"
+                2 -> " [MED]"
+                else -> ""
+            }
+            sendNotification(
+                todoId = todo.id.toInt() + 30000,
+                title = "Task Due in $hoursUntil hours$priorityLabel",
+                message = "\"${todo.title}\" deadline approaching",
+                priority = NotificationCompat.PRIORITY_DEFAULT
+            )
+        }
+
         return Result.success()
     }
 
@@ -71,37 +99,40 @@ class DeadlineCheckWorker(
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Task Deadlines",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notifications for approaching task deadlines"
+                description = "Notifications for approaching and overdue task deadlines"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 300, 200, 300)
             }
             val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
         }
     }
 
-    private fun sendNotification(todoId: Int, title: String, message: String) {
+    private fun sendNotification(todoId: Int, title: String, message: String, priority: Int) {
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("TODO_ID", todoId.toLong())
+            putExtra("TODO_ID", (todoId - 30000).toLong())
         }
-        
+
         val pendingIntent = PendingIntent.getActivity(
             applicationContext,
             todoId,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        
+
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle(title)
             .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(priority)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+            .setVibrate(longArrayOf(0, 300, 200, 300))
             .build()
-        
+
         val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
         notificationManager.notify(todoId, notification)
     }

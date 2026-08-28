@@ -18,6 +18,7 @@
 package io.github.dailytrack
 
 import android.app.Application
+import io.github.dailytrack.data.api.QuotesApi
 import io.github.dailytrack.data.db.AppDatabase
 import io.github.dailytrack.sync.SyncManager
 import io.github.dailytrack.sync.SyncRepository
@@ -36,6 +37,7 @@ class SoulTrackApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        QuotesApi.init(this)
         DeadlineCheckWorker.schedule(this)
     }
 }

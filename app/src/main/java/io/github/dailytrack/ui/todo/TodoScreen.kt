@@ -45,6 +45,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 enum class TodoFilter { ALL, HIGH, MEDIUM, LOW, OVERDUE }
+enum class TodoSortOrder { PRIORITY_DESC, PRIORITY_ASC, DEADLINE, NEWEST, OLDEST }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,11 +63,13 @@ fun TodoScreen(
     val overdueCount by viewModel.overdueCount.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(TodoFilter.ALL) }
+    var sortOrder by remember { mutableStateOf(TodoSortOrder.PRIORITY_DESC) }
     var showPriorityWarning by remember { mutableStateOf(false) }
     var pendingPomodoroTodo by remember { mutableStateOf<TodoEntity?>(null) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
-    val filteredTodos = remember(activeTodos, activeFilter) {
-        when (activeFilter) {
+    val filteredTodos = remember(activeTodos, activeFilter, sortOrder) {
+        val filtered = when (activeFilter) {
             TodoFilter.ALL -> activeTodos
             TodoFilter.HIGH -> activeTodos.filter { it.priority == 3 }
             TodoFilter.MEDIUM -> activeTodos.filter { it.priority == 2 }
@@ -74,6 +77,13 @@ fun TodoScreen(
             TodoFilter.OVERDUE -> activeTodos.filter {
                 it.deadline != null && it.deadline < System.currentTimeMillis()
             }
+        }
+        when (sortOrder) {
+            TodoSortOrder.PRIORITY_DESC -> filtered.sortedByDescending { it.priority }
+            TodoSortOrder.PRIORITY_ASC -> filtered.sortedBy { it.priority }
+            TodoSortOrder.DEADLINE -> filtered.sortedBy { it.deadline ?: Long.MAX_VALUE }
+            TodoSortOrder.NEWEST -> filtered.sortedByDescending { it.createdAt }
+            TodoSortOrder.OLDEST -> filtered.sortedBy { it.createdAt }
         }
     }
 
@@ -87,6 +97,51 @@ fun TodoScreen(
                     }
                 },
                 actions = {
+                    Box {
+                        IconButton(onClick = { showSortMenu = true }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Priority (High first)") },
+                                onClick = { sortOrder = TodoSortOrder.PRIORITY_DESC; showSortMenu = false },
+                                leadingIcon = if (sortOrder == TodoSortOrder.PRIORITY_DESC) {
+                                    { Icon(Icons.Default.Check, contentDescription = null) }
+                                } else null
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Priority (Low first)") },
+                                onClick = { sortOrder = TodoSortOrder.PRIORITY_ASC; showSortMenu = false },
+                                leadingIcon = if (sortOrder == TodoSortOrder.PRIORITY_ASC) {
+                                    { Icon(Icons.Default.Check, contentDescription = null) }
+                                } else null
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Deadline") },
+                                onClick = { sortOrder = TodoSortOrder.DEADLINE; showSortMenu = false },
+                                leadingIcon = if (sortOrder == TodoSortOrder.DEADLINE) {
+                                    { Icon(Icons.Default.Check, contentDescription = null) }
+                                } else null
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Newest first") },
+                                onClick = { sortOrder = TodoSortOrder.NEWEST; showSortMenu = false },
+                                leadingIcon = if (sortOrder == TodoSortOrder.NEWEST) {
+                                    { Icon(Icons.Default.Check, contentDescription = null) }
+                                } else null
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Oldest first") },
+                                onClick = { sortOrder = TodoSortOrder.OLDEST; showSortMenu = false },
+                                leadingIcon = if (sortOrder == TodoSortOrder.OLDEST) {
+                                    { Icon(Icons.Default.Check, contentDescription = null) }
+                                } else null
+                            )
+                        }
+                    }
                     IconButton(onClick = { showAddDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Add Todo")
                     }
@@ -162,12 +217,28 @@ fun TodoScreen(
             if (completedTodos.isNotEmpty()) {
                 item {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Completed (${completedTodos.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2E7D32)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Completed (${completedTodos.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2E7D32)
+                        )
+                        TextButton(
+                            onClick = { viewModel.deleteCompletedTodos() },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Clear All")
+                        }
+                    }
                 }
                 items(completedTodos.take(15), key = { it.id }) { todo ->
                     CompletedTodoItemCard(todo = todo, categories = categories)

@@ -16,7 +16,7 @@ Name: Soul Track
 Summary: Offline-first life tracking with timer, pomodoro, todos, and growth insights
 Description: |
   Soul Track is a privacy-first life tracking application that runs entirely
-  on your device. No internet permission, no accounts, no data leaves your phone.
+  on your device. No accounts required, no data leaves your phone by default.
 
   Core features include time tracking with category-based sessions, a pomodoro
   timer with customizable work and break durations, a todo list with priorities,
@@ -26,11 +26,12 @@ Description: |
 
   Additional features include insights with charts and trend analysis, home
   screen widgets for quick access, optional local device sync via Syncthing,
-  and a dark theme with customizable colors.
+  250+ built-in motivational quotes, optional online quotes API, and a dark
+  theme with customizable colors.
 
   All data is stored locally using SQLite. The optional sync feature uses
   Syncthing for encrypted local network transfer between your own devices.
-  No cloud services, no analytics, no tracking.
+  Optional internet permission only used when you enable the online quotes API.
 
 Builds:
   - versionName: 0.1.0
@@ -42,5 +43,3 @@ Builds:
 
 AllowedAPKSigningKeys: []
 AntiFeatures:
-  - Ads
-  - Tracking

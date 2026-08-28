@@ -61,6 +61,7 @@ fun TimerScreen(
     var showCategoryError by remember { mutableStateOf(false) }
     var showTitleError by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
+    var categorySearchQuery by remember { mutableStateOf("") }
 
     val isRunning = activeSession != null
     var elapsedSeconds by remember { mutableLongStateOf(0L) }
@@ -70,11 +71,13 @@ fun TimerScreen(
     ) { isGranted ->
         if (isGranted) {
             val catName = categories[selectedCategoryId]?.name ?: ""
+            val catType = categories[selectedCategoryId]?.type ?: ""
             viewModel.startSession(sessionTitle, selectedCategoryId)
             val intent = Intent(context, TimerForegroundService::class.java).apply {
                 putExtra(TimerForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
                 putExtra(TimerForegroundService.EXTRA_TITLE, sessionTitle.ifBlank { catName })
                 putExtra(TimerForegroundService.EXTRA_CATEGORY, catName)
+                putExtra(TimerForegroundService.EXTRA_CATEGORY_TYPE, catType)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -210,8 +213,17 @@ fun TimerScreen(
                     )
                 ) {
                     Column(modifier = Modifier.padding(8.dp)) {
+                        OutlinedTextField(
+                            value = categorySearchQuery,
+                            onValueChange = { categorySearchQuery = it },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            placeholder = { Text("Search categories...") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            singleLine = true
+                        )
                         categories.values
                             .filter { !it.archived }
+                            .filter { categorySearchQuery.isBlank() || it.name.contains(categorySearchQuery, ignoreCase = true) }
                             .sortedBy { it.name }
                             .forEach { category ->
                                 val isSelected = selectedCategoryId == category.id
@@ -340,11 +352,13 @@ fun TimerScreen(
                             }
 
                             val catName = categories[selectedCategoryId]?.name ?: ""
+                            val catType = categories[selectedCategoryId]?.type ?: ""
                             viewModel.startSession(sessionTitle, selectedCategoryId)
                             val intent = Intent(context, TimerForegroundService::class.java).apply {
                                 putExtra(TimerForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
                                 putExtra(TimerForegroundService.EXTRA_TITLE, sessionTitle.ifBlank { catName })
                                 putExtra(TimerForegroundService.EXTRA_CATEGORY, catName)
+                                putExtra(TimerForegroundService.EXTRA_CATEGORY_TYPE, catType)
                             }
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                 context.startForegroundService(intent)

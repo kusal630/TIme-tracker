@@ -17,14 +17,26 @@
 
 package io.github.dailytrack.data.api
 
+import android.content.Context
+import android.content.SharedPreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.URL
+
 data class Quote(
     val text: String,
     val author: String
 )
 
 object QuotesApi {
-    private val fallbackQuotes = listOf(
-        // Motivation
+    private const val PREFS_NAME = "soultrack_quotes_prefs"
+    private const val KEY_ONLINE_QUOTES = "online_quotes"
+    private const val KEY_API_ENABLED = "api_enabled"
+
+    private val offlineQuotes = listOf(
+        // Motivation (20)
         Quote("The only way to do great work is to love what you do.", "Steve Jobs"),
         Quote("Believe you can and you're halfway there.", "Theodore Roosevelt"),
         Quote("Dream it. Wish it. Do it.", "Unknown"),
@@ -46,7 +58,7 @@ object QuotesApi {
         Quote("Don't watch the clock; do what it does. Keep going.", "Sam Levenson"),
         Quote("Everything you've ever wanted is on the other side of fear.", "George Addair"),
 
-        // Discipline & Focus
+        // Discipline & Focus (20)
         Quote("Discipline is the bridge between goals and accomplishment.", "Jim Rohn"),
         Quote("Success is walking from failure to failure with no loss of enthusiasm.", "Winston Churchill"),
         Quote("It does not matter how slowly you go as long as you do not stop.", "Confucius"),
@@ -62,8 +74,13 @@ object QuotesApi {
         Quote("It's not that I'm so smart, it's just that I stay with problems longer.", "Albert Einstein"),
         Quote("The main thing is to keep the main thing the main thing.", "Stephen Covey"),
         Quote("Lack of direction, not lack of time, is the problem. We all have twenty-four hour days.", "Zig Ziglar"),
+        Quote("Focus on progress, not perfection.", "Unknown"),
+        Quote("The key to focus is saying no to the good so you can say yes to the best.", "John C. Maxwell"),
+        Quote("Concentration is the secret of strength.", "Ralph Waldo Emerson"),
+        Quote("Your focus determines your reality.", "George Lucas"),
+        Quote("Single-minded persistence is the mother of all skill.", "Tony Robbins"),
 
-        // Growth & Learning
+        // Growth & Learning (20)
         Quote("The beautiful thing about learning is that nobody can take it away from you.", "B.B. King"),
         Quote("Live as if you were to die tomorrow. Learn as if you were to live forever.", "Mahatma Gandhi"),
         Quote("The more that you read, the more things you will know.", "Dr. Seuss"),
@@ -71,7 +88,6 @@ object QuotesApi {
         Quote("I never lose. I either win or learn.", "Nelson Mandela"),
         Quote("The only real mistake is the one from which we learn nothing.", "Henry Ford"),
         Quote("The capacity to learn is a gift; the ability to learn is a skill; the willingness to learn is a choice.", "Brian Herbert"),
-        Quote("Beware of all enterprises that require new clothes.", "Henry David Thoreau"),
         Quote("The expert in anything was once a beginner.", "Helen Hayes"),
         Quote("If you are not willing to learn, no one can help you. If you are determined to learn, no one can stop you.", "Zig Ziglar"),
         Quote("The past is a place of reference, not a place of residence.", "Roy T. Bennett"),
@@ -79,8 +95,14 @@ object QuotesApi {
         Quote("The greatest teacher, failure is.", "Yoda"),
         Quote("In a growth mindset, challenges are exciting rather than threatening.", "Carol Dweck"),
         Quote("Anyone who stops learning is old, whether at twenty or eighty.", "Henry Ford"),
+        Quote("Learn as much as you can while you are young, since life will give you plenty of opportunities to learn later.", "Unknown"),
+        Quote("The more I learn, the more I realize how much I don't know.", "Albert Einstein"),
+        Quote("Learning is not attained by chance, it must be sought for with ardor and attended to with diligence.", "Abigail Adams"),
+        Quote("Education is the passport to the future, for tomorrow belongs to those who prepare for it today.", "Malcolm X"),
+        Quote("An investment in knowledge always pays the best interest.", "Benjamin Franklin"),
+        Quote("The only thing that interferes with my learning is my education.", "Albert Einstein"),
 
-        // Resilience & Perseverance
+        // Resilience & Perseverance (20)
         Quote("Success is not final, failure is not fatal: it is the courage to continue that counts.", "Winston Churchill"),
         Quote("Hardships often prepare ordinary people for an extraordinary destiny.", "C.S. Lewis"),
         Quote("The greatest glory in living lies not in never falling, but in rising every time we fall.", "Nelson Mandela"),
@@ -96,8 +118,13 @@ object QuotesApi {
         Quote("Pain is temporary. Quitting lasts forever.", "Lance Armstrong"),
         Quote("A hero is an ordinary individual who finds the strength to persevere and endure in spite of overwhelming obstacles.", "Christopher Reeve"),
         Quote("It is not the mountain we conquer, but ourselves.", "Sir Edmund Hillary"),
+        Quote("Perseverance is not a long race; it is many short races one after the other.", "Walter Elliot"),
+        Quote("The difference between a successful person and others is not a lack of strength, not a lack of knowledge, but rather a lack in will.", "Vince Lombardi"),
+        Quote("Through perseverance many people win success out of what seemed destined to be a certain failure.", "Benjamin Disraeli"),
+        Quote("Persistence and resilience only come from having been given the chance to work through difficult problems.", "Gever Tulley"),
+        Quote("The road to success is not easy to navigate, but with hard work, drive, and passion, it's possible to achieve your dream.", "Mark Wahlberg"),
 
-        // Wisdom & Mindfulness
+        // Wisdom & Mindfulness (20)
         Quote("The unexamined life is not worth living.", "Socrates"),
         Quote("Knowing yourself is the beginning of all wisdom.", "Aristotle"),
         Quote("The only true wisdom is in knowing you know nothing.", "Socrates"),
@@ -113,8 +140,13 @@ object QuotesApi {
         Quote("You should sit in meditation for twenty minutes a day, unless you're too busy; then you should sit for an hour.", "Zen Proverb"),
         Quote("Simplicity is the ultimate sophistication.", "Leonardo da Vinci"),
         Quote("The greatest weapon against stress is our ability to choose one thought over another.", "William James"),
+        Quote("Mindfulness is a way of befriending ourselves and our experience.", "Jon Kabat-Zinn"),
+        Quote("The present moment is the only moment available to us, and it is the door to all moments.", "Thich Nhat Hanh"),
+        Quote("Feelings come and go like clouds in a windy sky. Conscious breathing is my anchor.", "Thich Nhat Hanh"),
+        Quote("In today's rush, we all think too much, seek too much, want too much, and have lost our relationship with the only thing that matters: being here.", "Unknown"),
+        Quote("The soul always knows what to do to heal itself. The challenge is to silence the mind.", "Caroline Myss"),
 
-        // Courage & Action
+        // Courage & Action (20)
         Quote("Life shrinks or expands in proportion to one's courage.", "Anaïs Nin"),
         Quote("You miss 100% of the shots you don't take.", "Wayne Gretzky"),
         Quote("Inaction breeds doubt and fear. Action breeds confidence and courage.", "Dale Carnegie"),
@@ -130,8 +162,13 @@ object QuotesApi {
         Quote("The best revenge is massive success.", "Frank Sinatra"),
         Quote("Don't wait for opportunity. Create it.", "Unknown"),
         Quote("Your time is limited, don't waste it living someone else's life.", "Steve Jobs"),
+        Quote("The secret of getting ahead is getting started.", "Mark Twain"),
+        Quote("Action expresses priorities.", "Mahatma Gandhi"),
+        Quote("It is better to take many small steps in the right direction than to make a great leap forward only to stumble backward.", "Chinese Proverb"),
+        Quote("You don't need to be perfect to be amazing.", "Unknown"),
+        Quote("The best way to predict the future is to create it.", "Peter Drucker"),
 
-        // Success & Achievement
+        // Success & Achievement (20)
         Quote("Success usually comes to those who are too busy to be looking for it.", "Henry David Thoreau"),
         Quote("Don't be afraid to give up the good to go for the great.", "John D. Rockefeller"),
         Quote("I find that the harder I work, the more luck I seem to have.", "Thomas Jefferson"),
@@ -147,8 +184,13 @@ object QuotesApi {
         Quote("The road to success and the road to failure are almost exactly the same.", "Colin R. Davis"),
         Quote("Don't be distracted by criticism. Remember, the only taste of success some people get is when they take a bite out of you.", "Zig Ziglar"),
         Quote("Success is how high you bounce when you hit bottom.", "George S. Patton"),
+        Quote("Success is not the result of spontaneous combustion. You must set yourself on fire.", "Arnold H. Glasow"),
+        Quote("Success is not final, failure is not fatal: it is the courage to continue that counts.", "Winston Churchill"),
+        Quote("Success is walking from failure to failure with no loss of enthusiasm.", "Winston Churchill"),
+        Quote("Success is never owned, it is only rented—and the rent is due every day.", "Rory Vaden"),
+        Quote("Success is the sum of a small repeated effort repeated day in and day out.", "Robert Collier"),
 
-        // Productivity & Time
+        // Productivity & Time (20)
         Quote("Time is what we want most, but what we use worst.", "William Penn"),
         Quote("Lost time is never found again.", "Benjamin Franklin"),
         Quote("The key is not to prioritize your schedule, but to schedule your priorities.", "Stephen Covey"),
@@ -164,8 +206,13 @@ object QuotesApi {
         Quote("Either you run the day or the day runs you.", "Jim Rohn"),
         Quote("Your future is created by what you do today, not tomorrow.", "Robert Kiyosaki"),
         Quote("The bad news is time flies. The good news is you're the pilot.", "Michael Altshuler"),
+        Quote("Time is the most valuable thing a man can spend.", "Theophrastus"),
+        Quote("The two most powerful warriors are patience and time.", "Leo Tolstoy"),
+        Quote("Time management is life management.", "Unknown"),
+        Quote("Your time is limited, so don't waste it living someone else's life.", "Steve Jobs"),
+        Quote("The greatest resource we have is time.", "Unknown"),
 
-        // Leadership & Influence
+        // Leadership & Influence (20)
         Quote("The greatest leader is not the one who does the greatest things, but the one who gets people to do the greatest things.", "Ronald Reagan"),
         Quote("A leader is one who knows the way, goes the way, and shows the way.", "John C. Maxwell"),
         Quote("The ultimate measure of a man is not where he stands in moments of comfort, but where he stands at times of challenge.", "Martin Luther King Jr."),
@@ -176,8 +223,18 @@ object QuotesApi {
         Quote("People don't care how much you know until they know how much you care.", "Theodore Roosevelt"),
         Quote("The strength of the team is each individual member. The strength of each member is the team.", "Phil Jackson"),
         Quote("Leadership is the art of getting someone else to do something you want done because he wants to do it.", "Dwight D. Eisenhower"),
+        Quote("Leadership is not about being in charge. It is about taking care of those in your charge.", "Simon Sinek"),
+        Quote("The task of leadership is not to put greatness into people, but to elicit it, for the greatness is there already.", "John Buchan"),
+        Quote("A leader is best when people barely know he exists, when his work is done, his aim fulfilled, they will say: we did it ourselves.", "Lao Tzu"),
+        Quote("The measure of intelligence is the ability to change.", "Albert Einstein"),
+        Quote("Leadership and learning are indispensable to each other.", "John F. Kennedy"),
+        Quote("The most dangerous leadership myth is that leaders are born—that there is a genetic factor to leadership.", "Warren Bennis"),
+        Quote("He who has never learned to obey cannot be a good commander.", "Aristotle"),
+        Quote("The price of greatness is responsibility.", "Winston Churchill"),
+        Quote("Leadership is the capacity to translate vision into reality.", "Warren Bennis"),
+        Quote("True leadership lies in guiding others to success.", "Unknown"),
 
-        // Creativity & Innovation
+        // Creativity & Innovation (20)
         Quote("Creativity is intelligence having fun.", "Albert Einstein"),
         Quote("The chief enemy of creativity is good sense.", "Pablo Picasso"),
         Quote("Logic will get you from A to B. Imagination will take you everywhere.", "Albert Einstein"),
@@ -193,8 +250,13 @@ object QuotesApi {
         Quote("The true sign of intelligence is not knowledge but imagination.", "Albert Einstein"),
         Quote("To create, you must first destroy. Every act of creation is first an act of destruction.", "Pablo Picasso"),
         Quote("If you're not prepared to be wrong, you'll never come up with anything original.", "Ken Robinson"),
+        Quote("Creativity is the residue of time wasted.", "Albert Einstein"),
+        Quote("The creative adult is the child who survived.", "Ursula K. Le Guin"),
+        Quote("You can't use up creativity. The more you use, the more you have.", "Maya Angelou"),
+        Quote("The desire to create is one of the deepest yearnings of the human soul.", "Dieter F. Uchtdorf"),
+        Quote("Imagination is the beginning of creation.", "George Bernard Shaw"),
 
-        // Patience & Consistency
+        // Patience & Consistency (20)
         Quote("Patience is not simply the ability to wait—it's how we behave while we're waiting.", "Joyce Meyer"),
         Quote("The miracle is this: the more we share the more we have.", "Leonard Nimoy"),
         Quote("Consistency is what transforms average into excellence.", "Unknown"),
@@ -210,8 +272,13 @@ object QuotesApi {
         Quote("Success is neither magical nor mysterious. Success is the natural consequence of consistently applying basic fundamentals.", "Jim Rohn"),
         Quote("It's not what we do once in a while that shapes our lives, but what we do consistently.", "Tony Robbins"),
         Quote("We are what we repeatedly do. Excellence is not an act but a habit.", "Will Durant"),
+        Quote("Patience is bitter, but its fruit is sweet.", "Jean-Jacques Rousseau"),
+        Quote("The secret of patience is to do something else in the meantime.", "Unknown"),
+        Quote("Consistency is the key to success in any endeavor.", "Unknown"),
+        Quote("The difference between a master and a beginner is that the master has failed more times than the beginner has tried.", "Unknown"),
+        Quote("Consistency is more important than perfection.", "Unknown"),
 
-        // Gratitude & Positivity
+        // Gratitude & Positivity (20)
         Quote("Gratitude turns what we have into enough.", "Melody Beattie"),
         Quote("The more grateful I am, the more beauty I see.", "Mary Davis"),
         Quote("Joy is the simplest form of gratitude.", "Karl Barth"),
@@ -227,8 +294,13 @@ object QuotesApi {
         Quote("The soul that gives thanks can find comfort in everything.", "Hannah Whitall Smith"),
         Quote("Enjoy the little things, for one day you may look back and realize they were the big things.", "Robert Brault"),
         Quote("Happiness cannot be traveled to, owned, earned, worn, or consumed. Happiness is the spiritual experience of living every minute with love, grace, and gratitude.", "Denis Waitley"),
+        Quote("Gratitude is the fairest blossom which springs from the soul.", "Henry Ward Beecher"),
+        Quote("When you are grateful, you are great.", "Unknown"),
+        Quote("Gratitude is the sign of noble souls.", "Aesop"),
+        Quote("We can always find something to be thankful for.", "Unknown"),
+        Quote("Be thankful for what you have; you'll end up having more.", "Oprah Winfrey"),
 
-        // Failure & Setbacks
+        // Failure & Setbacks (20)
         Quote("I have not failed. I've just found 10,000 ways that won't work.", "Thomas Edison"),
         Quote("Failure is not the opposite of success: it's part of success.", "Arianna Huffington"),
         Quote("Every adversity, every failure, every heartache carries with it the seed of an equal or greater benefit.", "Napoleon Hill"),
@@ -244,8 +316,13 @@ object QuotesApi {
         Quote("You don't learn to walk by following rules. You learn by doing, and by falling over.", "Richard Branson"),
         Quote("Rock bottom became the solid foundation on which I rebuilt my life.", "J.K. Rowling"),
         Quote("There is only one thing that makes a dream impossible to achieve: the fear of failure.", "Paulo Coelho"),
+        Quote("Failure is the condiment that gives success its flavor.", "Truman Capote"),
+        Quote("I can accept failure, everyone fails at something. But I can't accept not trying.", "Michael Jordan"),
+        Quote("Failures are the stepping stones to success.", "Unknown"),
+        Quote("Every failure is a lesson learned.", "Unknown"),
+        Quote("Failure is not falling down but refusing to get up.", "Chinese Proverb"),
 
-        // Inner Strength & Self-Belief
+        // Inner Strength & Self-Belief (20)
         Quote("No one can make you feel inferior without your consent.", "Eleanor Roosevelt"),
         Quote("The most terrifying thing is to accept oneself completely.", "Carl Jung"),
         Quote("You yourself, as much as anybody in the entire universe, deserve your love and affection.", "Buddha"),
@@ -256,13 +333,18 @@ object QuotesApi {
         Quote("Self-confidence is the first requisite to great undertakings.", "Samuel Johnson"),
         Quote("You have been criticizing yourself for years, and it hasn't worked. Try approving of yourself and see what happens.", "Louise Hay"),
         Quote("The eyes are the mirror of the soul and reflect everything that seems to be hidden; and they reflect everything one doesn't see.", "Paulo Coelho"),
-        Quote("What lies behind us and what lies before us are tiny matters compared to what lies within us.", "Ralph Waldo Emerson"),
         Quote("If you hear a voice within you say you cannot paint, then by all means paint, and that voice will be silenced.", "Vincent van Gogh"),
         Quote("Trust yourself. You know more than you think you do.", "Benjamin Spock"),
         Quote("Our greatest weakness lies in giving up. The most certain way to try again is to try one more time.", "Thomas Edison"),
         Quote("Low self-esteem is like driving through life with your hand-break on.", "Maxwell Maltz"),
+        Quote("Confidence comes from discipline and training.", "Robert Kiyosaki"),
+        Quote("Believe you can and you're halfway there.", "Theodore Roosevelt"),
+        Quote("You are enough just as you are.", "Meghan Markle"),
+        Quote("Self-belief is not a luxury; it is a necessity.", "Unknown"),
+        Quote("The moment you doubt whether you can fly, you cease forever to be able to do it.", "J.M. Barrie"),
+        Quote("Your belief determines your action and your action determines your results.", "Unknown"),
 
-        // Balance & Life
+        // Balance & Life (20)
         Quote("Life is what happens when you're busy making other plans.", "John Lennon"),
         Quote("In the end, it's not the years in your life that count. It's the life in your years.", "Abraham Lincoln"),
         Quote("The purpose of our lives is to be happy.", "Dalai Lama"),
@@ -278,8 +360,13 @@ object QuotesApi {
         Quote("Life is not measured by the number of breaths we take, but by the moments that take our breath away.", "Maya Angelou"),
         Quote("Spread love everywhere you go. Let no one ever come to you without leaving happier.", "Mother Teresa"),
         Quote("Always remember that you are absolutely unique. Just like everyone else.", "Margaret Mead"),
+        Quote("The purpose of life is a life of purpose.", "Robert Byrne"),
+        Quote("Life is not about waiting for the storm to pass, but learning to dance in the rain.", "Unknown"),
+        Quote("In three words I can sum up everything I've learned about life: it goes on.", "Robert Frost"),
+        Quote("Life is a succession of lessons which must be lived to be understood.", "Ralph Waldo Emerson"),
+        Quote("The biggest adventure you can take is to live the life of your dreams.", "Oprah Winfrey"),
 
-        // Change & Adaptability
+        // Change & Adaptability (20)
         Quote("Be the change that you wish to see in the world.", "Mahatma Gandhi"),
         Quote("Change is the law of life. And those who look only to the past or present are certain to miss the future.", "John F. Kennedy"),
         Quote("If you don't like something, change it. If you can't change it, change your attitude.", "Maya Angelou"),
@@ -291,13 +378,81 @@ object QuotesApi {
         Quote("Every moment is a fresh beginning.", "T.S. Eliot"),
         Quote("The only way to make sense out of change is to plunge into it, move with it, and join the dance.", "Alan Watts"),
         Quote("Change is never painful, only the resistance to change is painful.", "Buddha"),
-        Quote("What the new year brings to you will depend a great deal on what you bring to the new year.", "Vern McLellan"),
+        Quote("What the new year brings to you will depend a great deal on what you bring to the year.", "Vern McLellan"),
         Quote("New beginnings are often disguised as painful endings.", "Lao Tzu"),
         Quote("You can't build a reputation on what you're going to do.", "Henry Ford"),
-        Quote("I am not what happened to me. I am what I choose to become.", "Carl Jung")
+        Quote("I am not what happened to me. I am what I choose to become.", "Carl Jung"),
+        Quote("The measure of a man is what he does with power.", "Plato"),
+        Quote("If we don't change, we don't grow. If we don't grow, we aren't really living.", "Gail Sheehy"),
+        Quote("Yesterday I was clever, so I wanted to change the world. Today I am wise, so I am changing myself.", "Rumi"),
+        Quote("Progress is impossible without change.", "George Bernard Shaw"),
+        Quote("The only way to make sense out of change is to plunge into it.", "Alan Watts")
     )
 
-    suspend fun getRandomQuote(): Quote {
-        return fallbackQuotes.random()
+    private var onlineQuotes: List<Quote> = emptyList()
+    private var prefs: SharedPreferences? = null
+
+    fun init(context: Context) {
+        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        loadOnlineQuotesFromPrefs()
     }
+
+    private fun loadOnlineQuotesFromPrefs() {
+        val json = prefs?.getString(KEY_ONLINE_QUOTES, null) ?: return
+        try {
+            val arr = JSONArray(json)
+            onlineQuotes = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                Quote(obj.getString("text"), obj.getString("author"))
+            }
+        } catch (_: Exception) { }
+    }
+
+    suspend fun getRandomQuote(): Quote {
+        val all = offlineQuotes + onlineQuotes
+        return all.random()
+    }
+
+    fun isApiEnabled(): Boolean {
+        return prefs?.getBoolean(KEY_API_ENABLED, false) ?: false
+    }
+
+    fun setApiEnabled(enabled: Boolean) {
+        prefs?.edit()?.putBoolean(KEY_API_ENABLED, enabled)?.apply()
+    }
+
+    suspend fun fetchOnlineQuotes(): List<Quote> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL("https://zenquotes.io/api/quotes")
+                val connection = url.openConnection()
+                val inputStream = connection.getInputStream()
+                val response = inputStream.bufferedReader().use { it.readText() }
+                val arr = JSONArray(response)
+                val quotes = (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    Quote(obj.getString("q"), obj.getString("a"))
+                }
+                onlineQuotes = quotes
+                saveOnlineQuotesToPrefs(quotes)
+                quotes
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+    }
+
+    private fun saveOnlineQuotesToPrefs(quotes: List<Quote>) {
+        val arr = JSONArray()
+        quotes.forEach { q ->
+            arr.put(JSONObject().apply {
+                put("text", q.text)
+                put("author", q.author)
+            })
+        }
+        prefs?.edit()?.putString(KEY_ONLINE_QUOTES, arr.toString())?.apply()
+    }
+
+    fun getTotalQuotesCount(): Int = offlineQuotes.size + onlineQuotes.size
+    fun getOfflineQuotesCount(): Int = offlineQuotes.size
 }

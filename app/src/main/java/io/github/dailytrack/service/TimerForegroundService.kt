@@ -35,6 +35,7 @@ class TimerForegroundService : Service() {
     private var startTime: Long = 0L
     private var sessionTitle: String = ""
     private var categoryName: String = ""
+    private var categoryType: String = ""
     private var notificationManager: NotificationManager? = null
     private var timerJob: Job? = null
 
@@ -45,6 +46,33 @@ class TimerForegroundService : Service() {
         const val EXTRA_START_TIME = "start_time"
         const val EXTRA_TITLE = "title"
         const val EXTRA_CATEGORY = "category"
+        const val EXTRA_CATEGORY_TYPE = "category_type"
+
+        fun getCategoryColor(type: String, isWaste: Boolean = false): Int {
+            if (isWaste) return 0xFFF44336.toInt()
+            return when (type) {
+                "PRODUCTIVE", "LEARNING" -> 0xFF4CAF50.toInt()
+                "EXERCISE" -> 0xFF2196F3.toInt()
+                "SLEEP" -> 0xFF9C27B0.toInt()
+                "SOCIAL" -> 0xFFFF9800.toInt()
+                "RECOVERY", "REST" -> 0xFF607D8B.toInt()
+                "WASTED" -> 0xFFF44336.toInt()
+                else -> 0xFF757575.toInt()
+            }
+        }
+
+        fun getCategoryLabel(type: String, isWaste: Boolean = false): String {
+            if (isWaste) return "Waste"
+            return when (type) {
+                "PRODUCTIVE", "LEARNING" -> "Productive"
+                "EXERCISE" -> "Exercise"
+                "SLEEP" -> "Sleep"
+                "SOCIAL" -> "Social"
+                "RECOVERY", "REST" -> "Rest"
+                "WASTED" -> "Waste"
+                else -> "Activity"
+            }
+        }
     }
 
     override fun onCreate() {
@@ -71,6 +99,7 @@ class TimerForegroundService : Service() {
             ?: System.currentTimeMillis()
         sessionTitle = intent?.getStringExtra(EXTRA_TITLE) ?: "Active Session"
         categoryName = intent?.getStringExtra(EXTRA_CATEGORY) ?: ""
+        categoryType = intent?.getStringExtra(EXTRA_CATEGORY_TYPE) ?: ""
 
         val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
         prefs.edit()
@@ -120,10 +149,13 @@ class TimerForegroundService : Service() {
         val seconds = (elapsed % 60000) / 1000
         val timeStr = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
 
+        val catColor = getCategoryColor(categoryType)
+        val catLabel = getCategoryLabel(categoryType)
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(sessionTitle.ifBlank { "Active Session" })
             .setContentText("Running: $timeStr")
-            .setSubText(categoryName.ifBlank { null })
+            .setSubText(catLabel)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -132,7 +164,10 @@ class TimerForegroundService : Service() {
             .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setColor(catColor)
+            .setStyle(
+                NotificationCompat.DecoratedCustomViewStyle()
+            )
             .build()
     }
 

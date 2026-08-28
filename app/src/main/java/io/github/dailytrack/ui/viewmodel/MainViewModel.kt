@@ -272,6 +272,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteCompletedTodos() {
+        viewModelScope.launch {
+            val completed = _completedTodos.value
+            completed.forEach { todo ->
+                todoRepo.delete(todo)
+                todoRepo.deleteAllSubtasksForTodo(todo.id)
+            }
+        }
+    }
+
     fun updateTodo(todo: TodoEntity) {
         viewModelScope.launch {
             todoRepo.update(todo)

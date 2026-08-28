@@ -37,7 +37,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import io.github.dailytrack.SoulTrackApp
+import io.github.dailytrack.data.api.QuotesApi
 import io.github.dailytrack.ui.Screen
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +50,9 @@ fun SettingsScreen(navController: NavController) {
     var exerciseMinutes by remember { mutableStateOf("30") }
     var sleepTarget by remember { mutableStateOf("8") }
     var maintenanceMode by remember { mutableStateOf(false) }
+    var apiQuotesEnabled by remember { mutableStateOf(QuotesApi.isApiEnabled()) }
+    var wasteModeEnabled by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -147,6 +152,79 @@ fun SettingsScreen(navController: NavController) {
                     ActionButton("Sync Settings", Icons.Default.Sync) {
                         navController.navigate(Screen.SyncSettings.route)
                     }
+                }
+            }
+
+            item {
+                SettingsSection(title = "Quotes", icon = Icons.Default.FormatQuote) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Online Quotes API", fontWeight = FontWeight.Medium)
+                            Text(
+                                "Fetch quotes from the internet for more variety",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = apiQuotesEnabled,
+                            onCheckedChange = { enabled ->
+                                apiQuotesEnabled = enabled
+                                QuotesApi.setApiEnabled(enabled)
+                                if (enabled) {
+                                    scope.launch {
+                                        val fetched = QuotesApi.fetchOnlineQuotes()
+                                        if (fetched.isNotEmpty()) {
+                                            Toast.makeText(context, "Fetched ${fetched.size} online quotes", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Failed to fetch quotes. Check your connection.", Toast.LENGTH_SHORT).show()
+                                            apiQuotesEnabled = false
+                                            QuotesApi.setApiEnabled(false)
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Offline: ${QuotesApi.getOfflineQuotesCount()} quotes | Total: ${QuotesApi.getTotalQuotesCount()} quotes",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Time Tracking", icon = Icons.Default.Timer) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Strict Waste Mode", fontWeight = FontWeight.Medium)
+                            Text(
+                                "Treat all non-productive, non-break time as waste",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = wasteModeEnabled,
+                            onCheckedChange = { wasteModeEnabled = it }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "When enabled, any time tracked outside of 'Productive'/'Learning' categories and breaks is flagged as wasted time in reports.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

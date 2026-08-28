@@ -151,7 +151,8 @@ fun GrowthComponentsCard(result: GrowthScoreResult?, coverage: io.github.dailytr
 }
 
 @Composable
-fun GrowthComponentRow(label: String, value: String, score: Double, color: Color) {
+fun GrowthComponentRow(label: String, value: String, score: Double, color: Color, totalScore: Double = 100.0) {
+    val percentage = if (totalScore > 0) (score / totalScore * 100).toInt() else 0
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -162,7 +163,7 @@ fun GrowthComponentRow(label: String, value: String, score: Double, color: Color
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Text(value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Text(
-            "${score.toInt()}%",
+            "${score.toInt()} pts",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = color,

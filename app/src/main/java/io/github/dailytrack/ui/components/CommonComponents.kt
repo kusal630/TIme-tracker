@@ -1,12 +1,106 @@
 package io.github.dailytrack.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
+
+data class PieChartData(
+    val label: String,
+    val value: Float,
+    val color: Color
+)
+
+@Composable
+fun TimeBreakdownPieChart(
+    data: List<PieChartData>,
+    modifier: Modifier = Modifier
+) {
+    val total = data.sumOf { it.value.toDouble() }.toFloat()
+    if (total <= 0f) return
+
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Time Distribution",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Canvas(
+                    modifier = Modifier.size(120.dp)
+                ) {
+                    var startAngle = -90f
+                    data.forEach { item ->
+                        val sweepAngle = (item.value / total) * 360f
+                        drawArc(
+                            color = item.color,
+                            startAngle = startAngle,
+                            sweepAngle = sweepAngle,
+                            useCenter = true,
+                            topLeft = Offset.Zero,
+                            size = Size(size.width, size.height)
+                        )
+                        startAngle += sweepAngle
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    data.forEach { item ->
+                        val percentage = if (total > 0) (item.value / total * 100) else 0f
+                        LegendItem(
+                            color = item.color,
+                            label = item.label,
+                            value = "${percentage.toInt()}%"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LegendItem(color: Color, label: String, value: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Canvas(modifier = Modifier.size(12.dp)) {
+            drawCircle(color = color)
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

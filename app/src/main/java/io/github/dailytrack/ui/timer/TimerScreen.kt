@@ -243,9 +243,6 @@ fun TimerScreen(
                 }
             }
 
-            item {
-                MedicalDisclaimerCard()
-            }
         }
     }
 }

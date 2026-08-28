@@ -16,6 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.dailytrack.data.db.entity.SessionEntity
 import io.github.dailytrack.ui.Screen
+import io.github.dailytrack.ui.components.*
 import io.github.dailytrack.ui.viewmodel.MainViewModel
 import java.time.LocalDate
 import java.time.ZoneId
@@ -90,6 +91,22 @@ fun DashboardScreen(
 
             item {
                 TimeTrackingCard(coverage = todayCoverage)
+            }
+
+            if (todayCoverage != null && todayCoverage!!.trackedSeconds > 0) {
+                item {
+                    TimeBreakdownPieChart(
+                        data = listOf(
+                            PieChartData("Productive", (todayCoverage!!.productiveSeconds + todayCoverage!!.learningSeconds).toFloat(), Color(0xFF2E7D32)),
+                            PieChartData("Exercise", todayCoverage!!.exerciseSeconds.toFloat(), Color(0xFFE65100)),
+                            PieChartData("Sleep", todayCoverage!!.sleepSeconds.toFloat(), Color(0xFF311B92)),
+                            PieChartData("Social", todayCoverage!!.socialSeconds.toFloat(), Color(0xFF6A1B9A)),
+                            PieChartData("Recovery", todayCoverage!!.recoverySeconds.toFloat(), Color(0xFF4CAF50)),
+                            PieChartData("Wasted", todayCoverage!!.wastedSeconds.toFloat(), Color(0xFFC62828)),
+                            PieChartData("Untracked", todayCoverage!!.untrackedSeconds.toFloat(), Color(0xFF757575))
+                        )
+                    )
+                }
             }
 
             item {

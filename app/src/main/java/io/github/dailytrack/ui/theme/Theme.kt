@@ -20,15 +20,19 @@ private val DarkColorScheme = darkColorScheme(
     onTertiary = Color(0xFF1B5E20),
     tertiaryContainer = Color(0xFF2E7D32),
     onTertiaryContainer = Color(0xFFC8E6C9),
-    background = Color(0xFF121212),
-    onBackground = Color(0xFFE0E0E0),
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color(0xFFE0E0E0),
-    surfaceVariant = Color(0xFF2C2C2C),
-    onSurfaceVariant = Color(0xFFBDBDBD),
-    error = Color(0xFFEF5350),
-    onError = Color(0xFFB71C1C),
-    outline = Color(0xFF616161)
+    background = Color(0xFF0F0F12),
+    onBackground = Color(0xFFE3E2E6),
+    surface = Color(0xFF1A1A1F),
+    onSurface = Color(0xFFE3E2E6),
+    surfaceVariant = Color(0xFF2C2C31),
+    onSurfaceVariant = Color(0xFFC7C5CA),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+    outline = Color(0xFF8E8E93),
+    outlineVariant = Color(0xFF444449),
+    surfaceTint = Color(0xFF90CAF9)
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -44,15 +48,19 @@ private val LightColorScheme = lightColorScheme(
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFC8E6C9),
     onTertiaryContainer = Color(0xFF1B5E20),
-    background = Color(0xFFFAFAFA),
-    onBackground = Color(0xFF212121),
-    surface = Color.White,
-    onSurface = Color(0xFF212121),
-    surfaceVariant = Color(0xFFF5F5F5),
-    onSurfaceVariant = Color(0xFF616161),
-    error = Color(0xFFD32F2F),
+    background = Color(0xFFFDFBFF),
+    onBackground = Color(0xFF1B1B1F),
+    surface = Color(0xFFFDFBFF),
+    onSurface = Color(0xFF1B1B1F),
+    surfaceVariant = Color(0xFFE1E2EC),
+    onSurfaceVariant = Color(0xFF44474E),
+    error = Color(0xFFBA1A1A),
     onError = Color.White,
-    outline = Color(0xFFBDBDBD)
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+    outline = Color(0xFF74777F),
+    outlineVariant = Color(0xFFC4C6D0),
+    surfaceTint = Color(0xFF1565C0)
 )
 
 @Composable
@@ -72,6 +80,7 @@ fun DailyTrackTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = Typography(),
         content = content
     )
 }

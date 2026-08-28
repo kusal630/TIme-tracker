@@ -1,5 +1,6 @@
 package io.github.dailytrack.ui.dashboard
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,27 +14,51 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.dailytrack.ui.Screen
 import io.github.dailytrack.ui.components.*
+import io.github.dailytrack.ui.viewmodel.MainViewModel
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(navController: NavController) {
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+fun DashboardScreen(
+    navController: NavController,
+    viewModel: MainViewModel = viewModel()
+) {
+    val selectedDate by viewModel.selectedDate.collectAsState()
+    val todaySessions by viewModel.todaySessions.collectAsState()
+    val todayCoverage by viewModel.todayCoverage.collectAsState()
+    val todayWater by viewModel.todayWater.collectAsState()
+    val todayCalories by viewModel.todayCalories.collectAsState()
+    val growthScore by viewModel.growthScore.collectAsState()
+    val activeInsights by viewModel.activeInsights.collectAsState()
+    val activeSession by viewModel.activeSession.collectAsState()
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Today's Dashboard") },
+            LargeTopAppBar(
+                title = {
+                    Column {
+                        Text("DailyTrack")
+                        Text(
+                            selectedDate.format(DateTimeFormatter.ofPattern("EEEE, MMM d")),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 actions = {
                     IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { padding ->
@@ -43,38 +68,48 @@ fun DashboardScreen(navController: NavController) {
                 .padding(padding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
+            contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
                 DatePickerCard(
                     selectedDate = selectedDate,
-                    onDateSelected = { selectedDate = it }
+                    onDateSelected = { viewModel.selectDate(it) }
                 )
             }
 
-            item {
-                SectionHeader(title = "Time Tracking")
-                TimeTrackingCard()
+            if (activeSession != null) {
+                item {
+                    ActiveSessionCard(activeSession = activeSession!!, onStop = { viewModel.stopSession() })
+                }
             }
 
             item {
-                SectionHeader(title = "Quick Actions")
-                QuickActionsRow(navController)
+                TimeTrackingCard(coverage = todayCoverage)
             }
 
             item {
-                SectionHeader(title = "Growth Score")
-                GrowthScoreCard()
+                QuickActionsRow(navController, hasActiveSession = activeSession != null)
             }
 
             item {
-                SectionHeader(title = "Health Overview")
-                HealthOverviewRow(navController)
+                GrowthScoreCard(score = growthScore)
             }
 
             item {
-                SectionHeader(title = "Recent Insights")
-                InsightsPreviewCard(navController)
+                HealthOverviewRow(
+                    navController = navController,
+                    waterMl = todayWater,
+                    calories = todayCalories
+                )
+            }
+
+            if (activeInsights.isNotEmpty()) {
+                item {
+                    SectionHeader(title = "Insights")
+                }
+                items(activeInsights.take(3)) { insight ->
+                    InsightCard(insight = insight, onDismiss = { viewModel.dismissInsight(insight.id) })
+                }
             }
 
             item {
@@ -113,7 +148,7 @@ fun DatePickerCard(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit)
                 Icon(Icons.Default.ChevronLeft, contentDescription = "Previous day")
             }
             Text(
-                text = selectedDate.format(DateTimeFormatter.ofPattern("EEEE, MMM d")),
+                text = selectedDate.format(DateTimeFormatter.ofPattern("EEE, MMM d")),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -128,36 +163,108 @@ fun DatePickerCard(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit)
 }
 
 @Composable
-fun TimeTrackingCard() {
+fun ActiveSessionCard(activeSession: io.github.dailytrack.data.db.entity.SessionEntity, onStop: () -> Unit) {
+    var elapsed by remember { mutableLongStateOf(System.currentTimeMillis() - activeSession.startTime) }
+
+    LaunchedEffect(activeSession.startTime) {
+        while (true) {
+            elapsed = System.currentTimeMillis() - activeSession.startTime
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    val hours = TimeUnit.MILLISECONDS.toHours(elapsed)
+    val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsed) % 60
+    val seconds = TimeUnit.MILLISECONDS.toSeconds(elapsed) % 60
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = activeSession.title.ifBlank { "Active Session" },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            FilledTonalButton(onClick = onStop) {
+                Icon(Icons.Default.Stop, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Stop")
+            }
+        }
+    }
+}
+
+@Composable
+fun TimeTrackingCard(coverage: io.github.dailytrack.engine.TimeCoverage?) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MetricItem("Productive", "0h 0m", Color(0xFF2E7D32))
-                MetricItem("Wasted", "0h 0m", Color(0xFFC62828))
-                MetricItem("Learning", "0h 0m", Color(0xFF1565C0))
+                MetricItem(
+                    "Productive",
+                    formatDuration(coverage?.productiveSeconds ?: 0),
+                    Color(0xFF2E7D32)
+                )
+                MetricItem(
+                    "Learning",
+                    formatDuration(coverage?.learningSeconds ?: 0),
+                    Color(0xFF1565C0)
+                )
+                MetricItem(
+                    "Exercise",
+                    formatDuration(coverage?.exerciseSeconds ?: 0),
+                    Color(0xFFE65100)
+                )
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MetricItem("Exercise", "0h 0m", Color(0xFFE65100))
-                MetricItem("Sleep", "0h 0m", Color(0xFF311B92))
-                MetricItem("Untracked", "0h 0m", Color(0xFF757575))
+                MetricItem(
+                    "Sleep",
+                    formatDuration(coverage?.sleepSeconds ?: 0),
+                    Color(0xFF311B92)
+                )
+                MetricItem(
+                    "Untracked",
+                    formatDuration(coverage?.untrackedSeconds ?: 0),
+                    Color(0xFF757575)
+                )
+                MetricItem(
+                    "Tracked",
+                    "${((coverage?.trackedRatio ?: 0.0) * 100).toInt()}%",
+                    MaterialTheme.colorScheme.primary
+                )
             }
             Spacer(modifier = Modifier.height(12.dp))
             LinearProgressIndicator(
-                progress = { 0.0f },
-                modifier = Modifier.fillMaxWidth(),
+                progress = { (coverage?.trackedRatio ?: 0.0).toFloat() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp),
                 color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = "0% day tracked",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 4.dp)
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
     }
@@ -181,103 +288,119 @@ fun MetricItem(label: String, value: String, color: Color) {
 }
 
 @Composable
-fun QuickActionsRow(navController: NavController) {
+fun QuickActionsRow(navController: NavController, hasActiveSession: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        QuickActionButton(
-            icon = Icons.Default.PlayArrow,
-            label = "Start Timer",
+        FilledTonalButton(
             onClick = { navController.navigate(Screen.Timer.route) },
-            modifier = Modifier.weight(1f)
-        )
-        QuickActionButton(
-            icon = Icons.Default.Restaurant,
-            label = "Log Food",
-            onClick = { navController.navigate(Screen.Food.route) },
-            modifier = Modifier.weight(1f)
-        )
-        QuickActionButton(
-            icon = Icons.Default.WaterDrop,
-            label = "Log Water",
-            onClick = { navController.navigate(Screen.Food.route) },
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-fun QuickActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(80.dp)
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier.weight(1f),
+            colors = if (hasActiveSession) ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ) else ButtonDefaults.filledTonalButtonColors()
         ) {
-            Icon(icon, contentDescription = label)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(label, fontSize = 12.sp)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Icon(
+                    if (hasActiveSession) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(if (hasActiveSession) "View Timer" else "Start Timer", fontSize = 11.sp)
+            }
+        }
+        FilledTonalButton(
+            onClick = { navController.navigate(Screen.Food.route) },
+            modifier = Modifier.weight(1f)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.Restaurant, contentDescription = null)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Log Food", fontSize = 11.sp)
+            }
+        }
+        FilledTonalButton(
+            onClick = { navController.navigate(Screen.Food.route) },
+            modifier = Modifier.weight(1f)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.WaterDrop, contentDescription = null)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Log Water", fontSize = 11.sp)
+            }
         }
     }
 }
 
 @Composable
-fun GrowthScoreCard() {
+fun GrowthScoreCard(score: Double) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Growth Score",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Today's progress",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
-                text = "Growth Score",
-                style = MaterialTheme.typography.titleMedium,
+                text = "${score.toInt()}",
+                style = MaterialTheme.typography.displaySmall,
+                color = when {
+                    score >= 70 -> Color(0xFF2E7D32)
+                    score >= 40 -> Color(0xFFF57C00)
+                    else -> Color(0xFFC62828)
+                },
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "--",
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "No data yet. Start tracking to see your growth score.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
 
 @Composable
-fun HealthOverviewRow(navController: NavController) {
+fun HealthOverviewRow(
+    navController: NavController,
+    waterMl: Double,
+    calories: Double
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         HealthCard(
             title = "Water",
-            value = "0 ml",
+            value = "${waterMl.toInt()} ml",
             subtitle = "Target: 2000 ml",
+            progress = (waterMl / 2000.0).coerceIn(0.0, 1.0).toFloat(),
             onClick = { navController.navigate(Screen.Food.route) },
             modifier = Modifier.weight(1f)
         )
         HealthCard(
-            title = "Sleep",
-            value = "0h",
-            subtitle = "No sleep logged",
-            onClick = { navController.navigate(Screen.Sleep.route) },
-            modifier = Modifier.weight(1f)
-        )
-        HealthCard(
-            title = "Nutrition",
-            value = "--",
-            subtitle = "No meals logged",
-            onClick = { navController.navigate(Screen.Nutrition.route) },
+            title = "Calories",
+            value = "${calories.toInt()} kcal",
+            subtitle = if (calories > 0) "Logged" else "No meals",
+            progress = (calories / 2000.0).coerceIn(0.0, 1.0).toFloat(),
+            onClick = { navController.navigate(Screen.Food.route) },
             modifier = Modifier.weight(1f)
         )
     }
@@ -288,12 +411,13 @@ fun HealthCard(
     title: String,
     value: String,
     subtitle: String,
+    progress: Float = 0f,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier
+        modifier = modifier.animateContentSize()
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
@@ -301,6 +425,7 @@ fun HealthCard(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
                 style = MaterialTheme.typography.titleLarge,
@@ -311,40 +436,76 @@ fun HealthCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (progress > 0f) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+            }
         }
     }
 }
 
 @Composable
-fun InsightsPreviewCard(navController: NavController) {
+fun InsightCard(insight: io.github.dailytrack.data.db.entity.InsightEntity, onDismiss: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        onClick = { navController.navigate(Screen.Insights.route) }
+        colors = CardDefaults.cardColors(
+            containerColor = when (insight.severity) {
+                "CRITICAL" -> MaterialTheme.colorScheme.errorContainer
+                "WARNING" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                "CAUTION" -> MaterialTheme.colorScheme.tertiaryContainer
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Insights",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = insight.title,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = insight.message,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (insight.actionLabel.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = insight.actionLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
                 Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = "View all",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icons.Default.Close,
+                    contentDescription = "Dismiss",
+                    modifier = Modifier.size(16.dp)
                 )
             }
-            Text(
-                text = "No insights yet. Start tracking to receive personalized suggestions.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
+}
+
+fun formatDuration(seconds: Long): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }
 
 @Composable
@@ -363,7 +524,7 @@ fun MedicalDisclaimerCard() {
                 color = MaterialTheme.colorScheme.error
             )
             Text(
-                text = "DailyTrack provides educational insights and lifestyle indicators only. It is not medical advice. If you have persistent symptoms, please consult a healthcare professional.",
+                text = "DailyTrack provides educational insights only. It is not medical advice. If you have persistent symptoms, please consult a healthcare professional.",
                 style = MaterialTheme.typography.bodySmall
             )
         }

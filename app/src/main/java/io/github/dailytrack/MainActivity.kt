@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import io.github.dailytrack.ui.DailyTrackNavHost
 import io.github.dailytrack.ui.theme.SoulTrackTheme
+import io.github.dailytrack.widget.QuoteWidgetProvider
 
 class MainActivity : ComponentActivity() {
 
@@ -38,6 +39,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        QuoteWidgetProvider.updateWidgets(this)
     }
 
     private fun requestNotificationPermission() {

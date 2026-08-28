@@ -15,6 +15,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import io.github.dailytrack.MainActivity
+import io.github.dailytrack.widget.PomodoroWidgetProvider
 import kotlinx.coroutines.*
 
 class PomodoroForegroundService : Service() {
@@ -52,43 +53,55 @@ class PomodoroForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 timerJob?.cancel()
+                val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
+                prefs.edit().putBoolean("is_running", false).apply()
                 val stopBroadcast = Intent(ACTION_COMPLETE)
                 stopBroadcast.setPackage(packageName)
                 sendBroadcast(stopBroadcast)
                 notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                PomodoroWidgetProvider.updateWidgets(this)
                 return START_NOT_STICKY
             }
             ACTION_COMPLETE -> {
                 timerJob?.cancel()
                 playCompletionSound()
+                val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
+                prefs.edit().putBoolean("is_running", false).apply()
                 val completeBroadcast = Intent(ACTION_COMPLETE)
                 completeBroadcast.setPackage(packageName)
                 sendBroadcast(completeBroadcast)
                 notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                PomodoroWidgetProvider.updateWidgets(this)
                 return START_NOT_STICKY
             }
             ACTION_COMPLETE_WORK -> {
                 timerJob?.cancel()
+                val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
+                prefs.edit().putBoolean("is_running", false).apply()
                 val workBroadcast = Intent(ACTION_COMPLETE_WORK)
                 workBroadcast.setPackage(packageName)
                 sendBroadcast(workBroadcast)
                 notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                PomodoroWidgetProvider.updateWidgets(this)
                 return START_NOT_STICKY
             }
             ACTION_COMPLETE_BREAK -> {
                 timerJob?.cancel()
+                val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
+                prefs.edit().putBoolean("is_running", false).apply()
                 val breakBroadcast = Intent(ACTION_COMPLETE_BREAK)
                 breakBroadcast.setPackage(packageName)
                 sendBroadcast(breakBroadcast)
                 notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                PomodoroWidgetProvider.updateWidgets(this)
                 return START_NOT_STICKY
             }
         }
@@ -100,9 +113,18 @@ class PomodoroForegroundService : Service() {
         isBreak = intent?.getBooleanExtra(EXTRA_IS_BREAK, false) ?: false
         workColor = intent?.getIntExtra(EXTRA_WORK_COLOR, 0xFFE94560.toInt()) ?: 0xFFE94560.toInt()
 
+        val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("is_running", true)
+            .putLong("start_time", startTime)
+            .putInt("duration", durationMinutes)
+            .putBoolean("is_break", isBreak)
+            .apply()
+
         val notification = buildNotification()
         startForeground(NOTIFICATION_ID, notification)
         startNotificationUpdates()
+        PomodoroWidgetProvider.updateWidgets(this)
         return START_STICKY
     }
 
@@ -112,6 +134,7 @@ class PomodoroForegroundService : Service() {
             while (isActive) {
                 val notification = buildNotification()
                 notificationManager?.notify(NOTIFICATION_ID, notification)
+                PomodoroWidgetProvider.updateWidgets(this@PomodoroForegroundService)
                 delay(1000)
             }
         }
@@ -243,6 +266,8 @@ class PomodoroForegroundService : Service() {
 
     override fun onDestroy() {
         timerJob?.cancel()
+        val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
+        prefs.edit().putBoolean("is_running", false).apply()
         notificationManager?.cancel(NOTIFICATION_ID)
         scope.cancel()
         super.onDestroy()

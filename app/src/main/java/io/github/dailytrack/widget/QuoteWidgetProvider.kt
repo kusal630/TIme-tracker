@@ -6,8 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import io.github.dailytrack.R
-import io.github.dailytrack.data.api.QuotesApi
 import io.github.dailytrack.SoulTrackApp
+import io.github.dailytrack.data.api.QuotesApi
+import io.github.dailytrack.data.db.entity.SavedQuoteEntity
 import kotlinx.coroutines.*
 
 class QuoteWidgetProvider : AppWidgetProvider() {
@@ -16,6 +17,8 @@ class QuoteWidgetProvider : AppWidgetProvider() {
         const val ACTION_NEXT_QUOTE = "io.github.dailytrack.ACTION_QUOTE_WIDGET_NEXT"
         const val ACTION_SAVE_QUOTE = "io.github.dailytrack.ACTION_QUOTE_WIDGET_SAVE"
         const val ACTION_UPDATE = "io.github.dailytrack.ACTION_QUOTE_WIDGET_UPDATE"
+        const val PREFS_NAME = "quote_widget_prefs"
+        const val REFRESH_INTERVAL_MS = 3600000L
 
         fun updateWidgets(context: Context) {
             val intent = Intent(context, QuoteWidgetProvider::class.java).apply {
@@ -31,6 +34,7 @@ class QuoteWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         for (appWidgetId in appWidgetIds) {
+            checkAndRefreshQuote(context)
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
     }
@@ -40,25 +44,11 @@ class QuoteWidgetProvider : AppWidgetProvider() {
 
         when (intent.action) {
             ACTION_NEXT_QUOTE -> {
-                CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
-                    val quote = QuotesApi.getRandomQuote()
-                    val prefs = context.getSharedPreferences("quote_widget_prefs", Context.MODE_PRIVATE)
-                    prefs.edit()
-                        .putString("quote_text", quote.text)
-                        .putString("quote_author", quote.author)
-                        .apply()
-
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-                    val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
-                    val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                    for (appWidgetId in appWidgetIds) {
-                        updateAppWidget(context, appWidgetManager, appWidgetId)
-                    }
-                }
+                fetchNewQuote(context)
             }
 
             ACTION_SAVE_QUOTE -> {
-                val prefs = context.getSharedPreferences("quote_widget_prefs", Context.MODE_PRIVATE)
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val quoteText = prefs.getString("quote_text", "") ?: ""
                 val quoteAuthor = prefs.getString("quote_author", "") ?: ""
 
@@ -68,23 +58,83 @@ class QuoteWidgetProvider : AppWidgetProvider() {
                         val existing = db.savedQuoteDao().getQuoteByText(quoteText)
                         if (existing == null) {
                             db.savedQuoteDao().insert(
-                                io.github.dailytrack.data.db.entity.SavedQuoteEntity(
-                                    text = quoteText,
-                                    author = quoteAuthor
-                                )
+                                SavedQuoteEntity(text = quoteText, author = quoteAuthor)
                             )
+                        }
+                        withContext(Dispatchers.Main) {
+                            val appWidgetManager = AppWidgetManager.getInstance(context)
+                            val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
+                            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                            for (appWidgetId in appWidgetIds) {
+                                val views = RemoteViews(context.packageName, R.layout.widget_quote)
+                                views.setTextViewText(R.id.widget_btn_save, "SAVED")
+                                appWidgetManager.updateAppWidget(appWidgetId, views)
+                                delay(1500)
+                                views.setTextViewText(R.id.widget_btn_save, "SAVE")
+                                appWidgetManager.updateAppWidget(appWidgetId, views)
+                            }
                         }
                     }
                 }
             }
 
             ACTION_UPDATE -> {
+                checkAndRefreshQuote(context)
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
                 val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
                 for (appWidgetId in appWidgetIds) {
                     updateAppWidget(context, appWidgetManager, appWidgetId)
                 }
+            }
+
+            Intent.ACTION_SCREEN_ON -> {
+                checkAndRefreshQuote(context)
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                for (appWidgetId in appWidgetIds) {
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                }
+            }
+
+            Intent.ACTION_USER_PRESENT -> {
+                checkAndRefreshQuote(context)
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                for (appWidgetId in appWidgetIds) {
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                }
+            }
+        }
+    }
+
+    private fun checkAndRefreshQuote(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val lastRefresh = prefs.getLong("last_refresh_time", 0L)
+        val now = System.currentTimeMillis()
+
+        if (now - lastRefresh > REFRESH_INTERVAL_MS) {
+            fetchNewQuote(context)
+        }
+    }
+
+    private fun fetchNewQuote(context: Context) {
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            val quote = QuotesApi.getRandomQuote()
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString("quote_text", quote.text)
+                .putString("quote_author", quote.author)
+                .putLong("last_refresh_time", System.currentTimeMillis())
+                .apply()
+
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+            for (appWidgetId in appWidgetIds) {
+                updateAppWidget(context, appWidgetManager, appWidgetId)
             }
         }
     }
@@ -96,30 +146,14 @@ class QuoteWidgetProvider : AppWidgetProvider() {
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_quote)
 
-        val prefs = context.getSharedPreferences("quote_widget_prefs", Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         var quoteText = prefs.getString("quote_text", "") ?: ""
         var quoteAuthor = prefs.getString("quote_author", "") ?: ""
 
         if (quoteText.isBlank()) {
-            CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
-                val quote = QuotesApi.getRandomQuote()
-                prefs.edit()
-                    .putString("quote_text", quote.text)
-                    .putString("quote_author", quote.author)
-                    .apply()
-
-                val appWidgetManager2 = AppWidgetManager.getInstance(context)
-                val componentName = android.content.ComponentName(context, QuoteWidgetProvider::class.java)
-                val appWidgetIds = appWidgetManager2.getAppWidgetIds(componentName)
-                for (appWidgetId2 in appWidgetIds) {
-                    val views2 = RemoteViews(context.packageName, R.layout.widget_quote)
-                    views2.setTextViewText(R.id.widget_quote_text, "\"${quote.text}\"")
-                    views2.setTextViewText(R.id.widget_quote_author, "— ${quote.author}")
-                    appWidgetManager2.updateAppWidget(appWidgetId2, views2)
-                }
-            }
             quoteText = "Loading inspiration..."
             quoteAuthor = ""
+            fetchNewQuote(context)
         }
 
         views.setTextViewText(R.id.widget_quote_text, "\"$quoteText\"")

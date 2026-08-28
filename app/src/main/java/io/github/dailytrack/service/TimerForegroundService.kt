@@ -40,9 +40,12 @@ class TimerForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 timerJob?.cancel()
+                val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
+                prefs.edit().putBoolean("is_running", false).apply()
                 notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                TimerWidgetProvider.updateWidgets(this)
                 return START_NOT_STICKY
             }
         }
@@ -52,9 +55,18 @@ class TimerForegroundService : Service() {
         sessionTitle = intent?.getStringExtra(EXTRA_TITLE) ?: "Active Session"
         categoryName = intent?.getStringExtra(EXTRA_CATEGORY) ?: ""
 
+        val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("is_running", true)
+            .putLong("start_time", startTime)
+            .putString("session_name", sessionTitle)
+            .putString("category_name", categoryName)
+            .apply()
+
         val notification = buildNotification()
         startForeground(NOTIFICATION_ID, notification)
         startNotificationUpdates()
+        TimerWidgetProvider.updateWidgets(this)
         return START_STICKY
     }
 
@@ -126,6 +138,8 @@ class TimerForegroundService : Service() {
 
     override fun onDestroy() {
         timerJob?.cancel()
+        val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
+        prefs.edit().putBoolean("is_running", false).apply()
         notificationManager?.cancel(NOTIFICATION_ID)
         scope.cancel()
         super.onDestroy()

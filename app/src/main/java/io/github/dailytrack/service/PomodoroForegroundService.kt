@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.graphics.Color
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
@@ -24,6 +25,7 @@ class PomodoroForegroundService : Service() {
     private var isBreak: Boolean = false
     private var notificationManager: NotificationManager? = null
     private var timerJob: Job? = null
+    private var workColor: Int = 0xFFE94560.toInt()
 
     companion object {
         const val CHANNEL_WORK = "soultrack_work"
@@ -31,10 +33,13 @@ class PomodoroForegroundService : Service() {
         const val NOTIFICATION_ID = 1002
         const val ACTION_STOP = "io.github.dailytrack.STOP_POMODORO"
         const val ACTION_COMPLETE = "io.github.dailytrack.COMPLETE_POMODORO"
+        const val ACTION_COMPLETE_WORK = "io.github.dailytrack.COMPLETE_POMODORO_WORK"
+        const val ACTION_COMPLETE_BREAK = "io.github.dailytrack.COMPLETE_POMODORO_BREAK"
         const val EXTRA_START_TIME = "start_time"
         const val EXTRA_DURATION = "duration"
         const val EXTRA_TODO_TITLE = "todo_title"
         const val EXTRA_IS_BREAK = "is_break"
+        const val EXTRA_WORK_COLOR = "work_color"
     }
 
     override fun onCreate() {
@@ -47,6 +52,9 @@ class PomodoroForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 timerJob?.cancel()
+                val stopBroadcast = Intent(ACTION_COMPLETE)
+                stopBroadcast.setPackage(packageName)
+                sendBroadcast(stopBroadcast)
                 notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -55,6 +63,29 @@ class PomodoroForegroundService : Service() {
             ACTION_COMPLETE -> {
                 timerJob?.cancel()
                 playCompletionSound()
+                val completeBroadcast = Intent(ACTION_COMPLETE)
+                completeBroadcast.setPackage(packageName)
+                sendBroadcast(completeBroadcast)
+                notificationManager?.cancel(NOTIFICATION_ID)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_COMPLETE_WORK -> {
+                timerJob?.cancel()
+                val workBroadcast = Intent(ACTION_COMPLETE_WORK)
+                workBroadcast.setPackage(packageName)
+                sendBroadcast(workBroadcast)
+                notificationManager?.cancel(NOTIFICATION_ID)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_COMPLETE_BREAK -> {
+                timerJob?.cancel()
+                val breakBroadcast = Intent(ACTION_COMPLETE_BREAK)
+                breakBroadcast.setPackage(packageName)
+                sendBroadcast(breakBroadcast)
                 notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -67,6 +98,7 @@ class PomodoroForegroundService : Service() {
         durationMinutes = intent?.getIntExtra(EXTRA_DURATION, 25) ?: 25
         todoTitle = intent?.getStringExtra(EXTRA_TODO_TITLE) ?: ""
         isBreak = intent?.getBooleanExtra(EXTRA_IS_BREAK, false) ?: false
+        workColor = intent?.getIntExtra(EXTRA_WORK_COLOR, 0xFFE94560.toInt()) ?: 0xFFE94560.toInt()
 
         val notification = buildNotification()
         startForeground(NOTIFICATION_ID, notification)
@@ -94,9 +126,10 @@ class PomodoroForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val completeIntent = PendingIntent.getService(
+        val action = if (isBreak) ACTION_COMPLETE_BREAK else ACTION_COMPLETE_WORK
+        val completeIntent = PendingIntent.getBroadcast(
             this, 2,
-            Intent(this, PomodoroForegroundService::class.java).apply { action = ACTION_COMPLETE },
+            Intent(this, PomodoroForegroundService::class.java).apply { this.action = action },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -108,9 +141,24 @@ class PomodoroForegroundService : Service() {
         val timeStr = String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
 
         val channel = if (isBreak) CHANNEL_BREAK else CHANNEL_WORK
-        val color = if (isBreak) 0xFFFFAB40.toInt() else 0xFFE94560.toInt()
         val title = if (isBreak) "Break Time" else "Focus Time"
         val subtitle = if (todoTitle.isNotBlank()) todoTitle else "Stay focused!"
+
+        val notificationColor = if (isBreak) {
+            0xFFFFAB40.toInt()
+        } else {
+            val progress = elapsed.toFloat() / totalMillis.toFloat()
+            val fromR = Color.red(workColor)
+            val fromG = Color.green(workColor)
+            val fromB = Color.blue(workColor)
+            val toR = Color.red(0xFFFFAB40.toInt())
+            val toG = Color.green(0xFFFFAB40.toInt())
+            val toB = Color.blue(0xFFFFAB40.toInt())
+            val r = (fromR + (toR - fromR) * progress).toInt()
+            val g = (fromG + (toG - fromG) * progress).toInt()
+            val b = (fromB + (toB - fromB) * progress).toInt()
+            Color.rgb(r, g, b)
+        }
 
         return NotificationCompat.Builder(this, channel)
             .setContentTitle("$title: $timeStr")
@@ -120,7 +168,7 @@ class PomodoroForegroundService : Service() {
             .setOngoing(true)
             .setUsesChronometer(false)
             .setShowWhen(false)
-            .setColor(color)
+            .setColor(notificationColor)
             .addAction(android.R.drawable.ic_media_pause, if (isBreak) "Skip Break" else "Complete", completeIntent)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setPriority(NotificationCompat.PRIORITY_LOW)

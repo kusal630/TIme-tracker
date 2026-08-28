@@ -176,11 +176,11 @@ fun SettingsScreen(navController: NavController) {
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     ActionButton("View Licenses", Icons.Default.Description) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/soultrack/soultrack/blob/main/LICENSE"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kusal630/TIme-tracker/blob/main/LICENSE"))
                         context.startActivity(intent)
                     }
                     ActionButton("GitHub Repository", Icons.Default.Code) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/soultrack/soultrack"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kusal630/TIme-tracker"))
                         context.startActivity(intent)
                     }
                     ActionButton("Delete All Data", Icons.Default.Delete, isDestructive = true) {

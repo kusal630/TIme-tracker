@@ -9,6 +9,9 @@ interface TodoDao {
     @Query("SELECT * FROM todos ORDER BY priority DESC, deadline ASC, createdAt DESC")
     fun getAllTodos(): Flow<List<TodoEntity>>
 
+    @Query("SELECT * FROM todos ORDER BY priority DESC, deadline ASC, createdAt DESC")
+    suspend fun getAllTodosSync(): List<TodoEntity>
+
     @Query("SELECT * FROM todos WHERE isCompleted = 0 ORDER BY priority DESC, deadline ASC, createdAt DESC")
     fun getActiveTodos(): Flow<List<TodoEntity>>
 

@@ -12,6 +12,9 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE startTime >= :dayStart AND startTime < :dayEnd ORDER BY startTime")
     suspend fun getSessionsForDaySync(dayStart: Long, dayEnd: Long): List<SessionEntity>
 
+    @Query("SELECT * FROM sessions ORDER BY startTime DESC")
+    suspend fun getAllSessionsSync(): List<SessionEntity>
+
     @Query("SELECT * FROM sessions WHERE isActive = 1 LIMIT 1")
     fun getActiveSession(): Flow<SessionEntity?>
 

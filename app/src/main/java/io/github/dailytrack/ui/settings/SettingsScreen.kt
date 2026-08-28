@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import io.github.dailytrack.SoulTrackApp
+import io.github.dailytrack.ui.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +98,38 @@ fun SettingsScreen(navController: NavController) {
             item {
                 SettingsSection(title = "Privacy", icon = Icons.Default.Shield) {
                     PrivacySwitch("Maintenance mode", Icons.Default.Pause, maintenanceMode) { maintenanceMode = it }
+                }
+            }
+
+            item {
+                SettingsSection(title = "Sync", icon = Icons.Default.Sync) {
+                    val app = context.applicationContext as SoulTrackApp
+                    val syncUiState by app.syncManager.uiState.collectAsState()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Offline Device Sync", fontWeight = FontWeight.Medium)
+                            Text(
+                                if (syncUiState.isEnabled) "Syncing via Syncthing"
+                                else "Disabled",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (syncUiState.isEnabled) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ActionButton("Sync Settings", Icons.Default.Sync) {
+                        navController.navigate(Screen.SyncSettings.route)
+                    }
                 }
             }
 

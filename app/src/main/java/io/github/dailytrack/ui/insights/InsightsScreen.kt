@@ -14,14 +14,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.dailytrack.data.db.entity.InsightEntity
+import io.github.dailytrack.ui.components.*
 import io.github.dailytrack.ui.viewmodel.MainViewModel
 import io.github.dailytrack.ui.viewmodel.WeeklyStats
+
+private val ProductiveGreen = Color(0xFF2E7D32)
+private val WastedRed = Color(0xFFC62828)
+private val FreeGray = Color(0xFF757575)
+private val LearningBlue = Color(0xFF1565C0)
+private val ExerciseOrange = Color(0xFFF57C00)
+private val SocialPurple = Color(0xFF7B1FA2)
+private val SleepTeal = Color(0xFF00897B)
+private val PomodoroRed = Color(0xFFE94560)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,10 +42,14 @@ fun InsightsScreen(
 ) {
     val activeInsights by viewModel.activeInsights.collectAsState()
     val weeklyStats by viewModel.weeklyStats.collectAsState()
-    val todayCoverage by viewModel.todayCoverage.collectAsState()
     val growthScore by viewModel.growthScore.collectAsState()
+    val growthResult by viewModel.growthResult.collectAsState()
     val activeTodoCount by viewModel.activeTodoCount.collectAsState()
     val completedTodoCount by viewModel.completedTodoCount.collectAsState()
+    val todaySessions by viewModel.todaySessions.collectAsState()
+    val todayPomodoros by viewModel.todayPomodoros.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val dailyProductivity by viewModel.dailyProductivity.collectAsState()
 
     Scaffold(
         topBar = {
@@ -56,23 +71,33 @@ fun InsightsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                StatsOverviewCard(
-                    weeklyStats = weeklyStats,
-                    todayCoverage = todayCoverage,
-                    growthScore = growthScore,
-                    activeTodoCount = activeTodoCount,
-                    completedTodoCount = completedTodoCount
+                GrowthScoreCard(growthScore = growthScore, growthResult = growthResult)
+            }
+
+            item {
+                TodoProgressCard(activeCount = activeTodoCount, completedCount = completedTodoCount)
+            }
+
+            item {
+                TimeDistributionCard(weeklyStats = weeklyStats)
+            }
+
+            item {
+                CategoryBreakdownCard(
+                    sessions = todaySessions,
+                    categories = categories,
+                    pomodoros = todayPomodoros
                 )
             }
 
             item {
-                WeeklyChartCard(weeklyStats = weeklyStats)
+                WeeklyTrendCard(dailyProductivity = dailyProductivity)
             }
 
             item {
-                TodoProgressCard(
-                    activeCount = activeTodoCount,
-                    completedCount = completedTodoCount
+                PomodoroStatsCard(
+                    pomodoros = todayPomodoros,
+                    weeklyStats = weeklyStats
                 )
             }
 
@@ -85,7 +110,76 @@ fun InsightsScreen(
                     )
                 }
                 items(activeInsights, key = { it.id }) { insight ->
-                    InsightDetailCard(insight = insight, onDismiss = { viewModel.dismissInsight(insight.id) })
+                    InsightDetailCard(
+                        insight = insight,
+                        onDismiss = { viewModel.dismissInsight(insight.id) }
+                    )
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+        }
+    }
+}
+
+@Composable
+fun GrowthScoreCard(
+    growthScore: Double,
+    growthResult: io.github.dailytrack.engine.GrowthScoreResult?
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val scoreColor = when {
+                growthScore >= 70 -> ProductiveGreen
+                growthScore >= 40 -> ExerciseOrange
+                else -> WastedRed
+            }
+
+            ProgressRing(
+                progress = (growthScore / 100f).toFloat(),
+                size = 100.dp,
+                strokeWidth = 10.dp,
+                color = scoreColor,
+                centerContent = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${growthScore.toInt()}",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = scoreColor
+                        )
+                        Text(
+                            text = "Growth",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Daily Growth Score",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                if (growthResult != null) {
+                    ScoreBreakdown("Learning", growthResult.learningComponent, LearningBlue)
+                    ScoreBreakdown("Productive", growthResult.productiveComponent, ProductiveGreen)
+                    ScoreBreakdown("Exercise", growthResult.exerciseComponent, ExerciseOrange)
+                    ScoreBreakdown("Consistency", growthResult.consistencyComponent, PomodoroRed)
+                } else {
+                    Text(
+                        "Start tracking to see your growth",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -93,64 +187,86 @@ fun InsightsScreen(
 }
 
 @Composable
-fun StatsOverviewCard(
-    weeklyStats: WeeklyStats,
-    todayCoverage: io.github.dailytrack.engine.TimeCoverage?,
-    growthScore: Double,
-    activeTodoCount: Int,
-    completedTodoCount: Int
-) {
+fun ScoreBreakdown(label: String, score: Double, color: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.width(70.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        LinearProgressIndicator(
+            progress = { (score / 100.0).toFloat().coerceIn(0f, 1f) },
+            modifier = Modifier
+                .weight(1f)
+                .height(6.dp),
+            color = color,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "${score.toInt()}%",
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun TodoProgressCard(activeCount: Int, completedCount: Int) {
+    val total = activeCount + completedCount
+
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "Weekly Overview",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PieChart(
+                slices = listOf(
+                    PieChartSlice(completedCount.toFloat(), ProductiveGreen, "Completed"),
+                    PieChartSlice(activeCount.toFloat(), ExerciseOrange, "Pending"),
+                ),
+                size = 80.dp,
+                strokeWidth = 12.dp,
+                centerContent = {
+                    Text(
+                        text = if (total > 0) "${(completedCount * 100 / total)}%" else "0%",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                StatItem("Productive", "${weeklyStats.totalProductiveMinutes / 60}h", Color(0xFF2E7D32))
-                StatItem("Wasted", "${weeklyStats.totalWastedMinutes / 60}h", Color(0xFFC62828))
-                StatItem("Free", "${weeklyStats.totalFreeMinutes / 60}h", Color(0xFF757575))
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                StatItem("Growth", "${growthScore.toInt()}%", MaterialTheme.colorScheme.primary)
-                StatItem("Todos Done", "$completedTodoCount", Color(0xFF2E7D32))
-                StatItem("Todos Pending", "$activeTodoCount", Color(0xFFF57C00))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Todo Progress",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                PieChartLegend(
+                    slices = listOf(
+                        PieChartSlice(completedCount.toFloat(), ProductiveGreen, "Completed ($completedCount)"),
+                        PieChartSlice(activeCount.toFloat(), ExerciseOrange, "Pending ($activeCount)"),
+                    )
+                )
             }
         }
     }
 }
 
 @Composable
-fun StatItem(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
+fun TimeDistributionCard(weeklyStats: WeeklyStats) {
+    val total = (weeklyStats.totalProductiveMinutes + weeklyStats.totalWastedMinutes + weeklyStats.totalFreeMinutes).toFloat()
 
-@Composable
-fun WeeklyChartCard(weeklyStats: WeeklyStats) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -159,45 +275,44 @@ fun WeeklyChartCard(weeklyStats: WeeklyStats) {
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(12.dp))
-            
-            val total = (weeklyStats.totalProductiveMinutes + weeklyStats.totalWastedMinutes + weeklyStats.totalFreeMinutes).toFloat()
-            
+
             if (total > 0) {
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                ) {
-                    val productiveWidth = (weeklyStats.totalProductiveMinutes / total) * size.width
-                    val wastedWidth = (weeklyStats.totalWastedMinutes / total) * size.width
-                    val freeWidth = (weeklyStats.totalFreeMinutes / total) * size.width
-                    
-                    drawRect(
-                        color = Color(0xFF2E7D32),
-                        topLeft = Offset.Zero,
-                        size = Size(productiveWidth, size.height)
-                    )
-                    drawRect(
-                        color = Color(0xFFC62828),
-                        topLeft = Offset(productiveWidth, 0f),
-                        size = Size(wastedWidth, size.height)
-                    )
-                    drawRect(
-                        color = Color(0xFF757575),
-                        topLeft = Offset(productiveWidth + wastedWidth, 0f),
-                        size = Size(freeWidth, size.height)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    LegendItem(Color(0xFF2E7D32), "Productive")
-                    LegendItem(Color(0xFFC62828), "Wasted")
-                    LegendItem(Color(0xFF757575), "Free")
+                    PieChart(
+                        slices = listOf(
+                            PieChartSlice(weeklyStats.totalProductiveMinutes.toFloat(), ProductiveGreen, "Productive"),
+                            PieChartSlice(weeklyStats.totalWastedMinutes.toFloat(), WastedRed, "Wasted"),
+                            PieChartSlice(weeklyStats.totalFreeMinutes.toFloat(), FreeGray, "Free"),
+                        ),
+                        size = 120.dp,
+                        strokeWidth = 16.dp,
+                        centerContent = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${(total / 60).toInt()}h",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "total",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    PieChartLegend(
+                        slices = listOf(
+                            PieChartSlice(weeklyStats.totalProductiveMinutes.toFloat(), ProductiveGreen, "Productive"),
+                            PieChartSlice(weeklyStats.totalWastedMinutes.toFloat(), WastedRed, "Wasted"),
+                            PieChartSlice(weeklyStats.totalFreeMinutes.toFloat(), FreeGray, "Free"),
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             } else {
                 Text(
@@ -211,53 +326,252 @@ fun WeeklyChartCard(weeklyStats: WeeklyStats) {
 }
 
 @Composable
-fun LegendItem(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(modifier = Modifier.size(12.dp)) {
-            drawCircle(color = color)
-        }
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.bodySmall)
-    }
-}
+fun CategoryBreakdownCard(
+    sessions: List<io.github.dailytrack.data.db.entity.SessionEntity>,
+    categories: Map<Long, io.github.dailytrack.data.db.entity.CategoryEntity>,
+    pomodoros: List<io.github.dailytrack.data.db.entity.PomodoroSessionEntity>
+) {
+    val categoryDurations = mutableMapOf<String, Float>()
+    var productiveMinutes = 0f
 
-@Composable
-fun TodoProgressCard(activeCount: Int, completedCount: Int) {
+    for (session in sessions) {
+        if (session.isActive) continue
+        val duration = ((session.endTime ?: System.currentTimeMillis()) - session.startTime) / 60000f
+        val cat = session.categoryId?.let { categories[it] }
+        val catType = cat?.type ?: session.type
+        val label = cat?.name ?: catType
+        categoryDurations[label] = (categoryDurations[label] ?: 0f) + duration
+        if (catType in listOf("PRODUCTIVE", "LEARNING", "ACTIVITY")) {
+            productiveMinutes += duration
+        }
+    }
+
+    for (p in pomodoros) {
+        if (p.isCompleted && p.type == "WORK") {
+            productiveMinutes += p.durationMinutes
+            categoryDurations["Pomodoro"] = (categoryDurations["Pomodoro"] ?: 0f) + p.durationMinutes
+        }
+    }
+
+    val slices = categoryDurations.entries
+        .sortedByDescending { it.value }
+        .take(6)
+        .mapIndexed { index, entry ->
+            val colors = listOf(ProductiveGreen, LearningBlue, ExerciseOrange, SocialPurple, PomodoroRed, FreeGray)
+            PieChartSlice(entry.value, colors[index % colors.size], entry.key)
+        }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Todo Progress",
+                "Today's Category Breakdown",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(12.dp))
-            
-            val total = activeCount + completedCount
-            val progress = if (total > 0) completedCount.toFloat() / total else 0f
-            
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = Color(0xFF2E7D32),
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
+
+            if (slices.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PieChart(
+                        slices = slices,
+                        size = 120.dp,
+                        strokeWidth = 16.dp,
+                        centerContent = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${productiveMinutes.toInt()}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "min",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    PieChartLegend(
+                        slices = slices,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+                Text(
+                    "No sessions recorded today",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun WeeklyTrendCard(dailyProductivity: List<Pair<String, Float>>) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Weekly Productivity Trend",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (dailyProductivity.isNotEmpty() && dailyProductivity.any { it.second > 0 }) {
+                val maxValue = dailyProductivity.maxOf { it.second }.coerceAtLeast(1f)
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                ) {
+                    val width = size.width
+                    val height = size.height
+                    val stepX = width / (dailyProductivity.size - 1).coerceAtLeast(1)
+                    val padding = 8.dp.toPx()
+
+                    // Grid lines
+                    for (i in 0..3) {
+                        val y = height - (height * i / 3f)
+                        drawLine(
+                            color = Color.Gray.copy(alpha = 0.15f),
+                            start = Offset(0f, y),
+                            end = Offset(width, y),
+                            strokeWidth = 1f
+                        )
+                    }
+
+                    // Line path
+                    val path = Path()
+                    dailyProductivity.forEachIndexed { index, (_, value) ->
+                        val x = index * stepX
+                        val y = height - (value / maxValue * (height - padding * 2)) - padding
+                        if (index == 0) path.moveTo(x, y)
+                        else path.lineTo(x, y)
+                    }
+
+                    drawPath(
+                        path = path,
+                        color = ProductiveGreen,
+                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                    )
+
+                    // Dots
+                    dailyProductivity.forEachIndexed { index, (_, value) ->
+                        val x = index * stepX
+                        val y = height - (value / maxValue * (height - padding * 2)) - padding
+                        drawCircle(
+                            color = ProductiveGreen,
+                            radius = 5.dp.toPx(),
+                            center = Offset(x, y)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    dailyProductivity.forEach { (label, _) ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
                 Text(
-                    "$completedCount completed",
+                    "No data for this week",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF2E7D32)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun PomodoroStatsCard(
+    pomodoros: List<io.github.dailytrack.data.db.entity.PomodoroSessionEntity>,
+    weeklyStats: WeeklyStats
+) {
+    val completedPomodoros = pomodoros.count { it.isCompleted && it.type == "WORK" }
+    val totalPomodoroMinutes = pomodoros
+        .filter { it.isCompleted && it.type == "WORK" }
+        .sumOf { it.durationMinutes }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+                    PieChart(
+                        slices = listOf(
+                            PieChartSlice(completedPomodoros.toFloat(), PomodoroRed, "Completed"),
+                            PieChartSlice(
+                                (8 - completedPomodoros.toFloat()).coerceAtLeast(0f),
+                                Color.Gray.copy(alpha = 0.3f),
+                                "Remaining"
+                            ),
+                        ),
+                size = 80.dp,
+                strokeWidth = 12.dp,
+                centerContent = {
+                    Icon(
+                        Icons.Default.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = PomodoroRed
+                    )
+                }
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "$activeCount pending",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFF57C00)
+                    "Pomodoro Today",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            "$completedPomodoros sessions",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "${totalPomodoroMinutes}min focused",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "${weeklyStats.averageProductivePerDay}min",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = ProductiveGreen
+                        )
+                        Text(
+                            "daily avg",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
@@ -294,9 +608,9 @@ fun InsightDetailCard(insight: InsightEntity, onDismiss: () -> Unit) {
                         },
                         contentDescription = null,
                         tint = when (insight.severity) {
-                            "CRITICAL" -> Color(0xFFC62828)
-                            "WARNING" -> Color(0xFFF57C00)
-                            "CAUTION" -> Color(0xFF1565C0)
+                            "CRITICAL" -> WastedRed
+                            "WARNING" -> ExerciseOrange
+                            "CAUTION" -> LearningBlue
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         },
                         modifier = Modifier.size(20.dp)
@@ -323,11 +637,7 @@ fun InsightDetailCard(insight: InsightEntity, onDismiss: () -> Unit) {
                 }
             }
             IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Dismiss",
-                    modifier = Modifier.size(16.dp)
-                )
+                Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
             }
         }
     }

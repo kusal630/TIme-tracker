@@ -17,7 +17,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionRepo = SessionRepository(db.sessionDao())
     private val categoryRepo = CategoryRepository(db.categoryDao())
     private val insightRepo = InsightRepository(db.insightDao())
-    private val todoRepo = TodoRepository(db.todoDao())
+    private val todoRepo = TodoRepository(db.todoDao(), db.subtaskDao())
     private val pomodoroRepo = PomodoroRepository(db.pomodoroSessionDao())
     private val savedQuoteRepo = SavedQuoteRepository(db.savedQuoteDao())
     private val routineEngine = RoutineLoopEngine()
@@ -65,6 +65,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _completedTodoCount = MutableStateFlow(0)
     val completedTodoCount: StateFlow<Int> = _completedTodoCount
 
+    private val _highPriorityCount = MutableStateFlow(0)
+    val highPriorityCount: StateFlow<Int> = _highPriorityCount
+
+    private val _overdueCount = MutableStateFlow(0)
+    val overdueCount: StateFlow<Int> = _overdueCount
+
     private val _todayPomodoros = MutableStateFlow<List<PomodoroSessionEntity>>(emptyList())
     val todayPomodoros: StateFlow<List<PomodoroSessionEntity>> = _todayPomodoros
 
@@ -76,6 +82,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _weeklyStats = MutableStateFlow(WeeklyStats())
     val weeklyStats: StateFlow<WeeklyStats> = _weeklyStats
+
+    private val _dailyProductivity = MutableStateFlow<List<Pair<String, Float>>>(emptyList())
+    val dailyProductivity: StateFlow<List<Pair<String, Float>>> = _dailyProductivity
 
     init {
         viewModelScope.launch {
@@ -119,6 +128,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
+            todoRepo.getHighPriorityCount().collect { count ->
+                _highPriorityCount.value = count
+            }
+        }
+
+        viewModelScope.launch {
+            todoRepo.getOverdueCount(System.currentTimeMillis()).collect { count ->
+                _overdueCount.value = count
+            }
+        }
+
+        viewModelScope.launch {
             _selectedDate.collect { date -> loadDayData(date) }
         }
 
@@ -157,6 +178,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             calculateWeeklyStats()
+            calculateDailyProductivity()
         }
     }
 
@@ -206,14 +228,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addTodo(title: String, description: String, categoryId: Long?, deadline: Long?, estimatedMinutes: Int) {
+    fun addTodo(title: String, description: String, categoryId: Long?, deadline: Long?, estimatedMinutes: Int, priority: Int = 0) {
         viewModelScope.launch {
             val todo = TodoEntity(
                 title = title,
                 description = description,
                 categoryId = categoryId,
                 deadline = deadline,
-                estimatedMinutes = estimatedMinutes
+                estimatedMinutes = estimatedMinutes,
+                priority = priority
             )
             todoRepo.insert(todo)
         }
@@ -228,6 +251,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteTodo(todo: TodoEntity) {
         viewModelScope.launch {
             todoRepo.delete(todo)
+            todoRepo.deleteAllSubtasksForTodo(todo.id)
         }
     }
 
@@ -298,6 +322,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun isQuoteSaved(text: String): Boolean {
         return _savedQuotes.value.any { it.text == text }
+    }
+
+    fun getSubtasksForTodo(todoId: Long): Flow<List<SubtaskEntity>> {
+        return todoRepo.getSubtasksForTodo(todoId)
+    }
+
+    fun addSubtask(todoId: Long, title: String) {
+        viewModelScope.launch {
+            todoRepo.insertSubtask(
+                SubtaskEntity(
+                    todoId = todoId,
+                    title = title,
+                    sortOrder = 0
+                )
+            )
+        }
+    }
+
+    fun toggleSubtask(subtask: SubtaskEntity) {
+        viewModelScope.launch {
+            todoRepo.setSubtaskCompleted(subtask.id, !subtask.isCompleted)
+        }
+    }
+
+    fun deleteSubtask(subtask: SubtaskEntity) {
+        viewModelScope.launch {
+            todoRepo.deleteSubtask(subtask)
+        }
     }
 
     private suspend fun calculateGrowthScore() {
@@ -592,13 +644,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun calculateWeeklyStats() {
         val zone = ZoneId.systemDefault()
         val today = _selectedDate.value
-        val weekStart = today.minusDays(6)
 
         var totalProductive = 0
         var totalWasted = 0
         var totalFree = 0
         var totalCompletedTodos = 0
-        var totalPendingTodos = 0
 
         for (i in 0..6) {
             val date = today.minusDays(i.toLong())
@@ -630,6 +680,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             activeTodos = _activeTodoCount.value,
             averageProductivePerDay = totalProductive / 7
         )
+    }
+
+    private suspend fun calculateDailyProductivity() {
+        val zone = ZoneId.systemDefault()
+        val today = _selectedDate.value
+        val cats = _categories.value
+        val dailyData = mutableListOf<Pair<String, Float>>()
+
+        val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+        for (i in 6 downTo 0) {
+            val date = today.minusDays(i.toLong())
+            val (dayStart, dayEnd) = getDayRange(date, zone)
+            val sessions = sessionRepo.getSessionsForDaySync(dayStart, dayEnd)
+            val pomodoros = pomodoroRepo.getPomodorosForDaySync(dayStart, dayEnd)
+
+            var productiveMinutes = 0f
+
+            for (session in sessions) {
+                if (session.isActive) continue
+                val duration = ((session.endTime ?: dayEnd) - session.startTime) / 60000f
+                val cat = session.categoryId?.let { cats[it] }
+                val catType = cat?.type ?: session.type
+                if (catType in listOf("PRODUCTIVE", "LEARNING", "ACTIVITY", "EXERCISE")) {
+                    productiveMinutes += duration
+                }
+            }
+
+            for (p in pomodoros) {
+                if (p.isCompleted && p.type == "WORK") {
+                    productiveMinutes += p.durationMinutes
+                }
+            }
+
+            val dayOfWeek = date.dayOfWeek.value % 7
+            val label = dayLabels[(dayOfWeek + 6) % 7]
+            dailyData.add(label to productiveMinutes)
+        }
+
+        _dailyProductivity.value = dailyData
     }
 
     private fun getDayRange(date: LocalDate, zone: ZoneId, dayStartHour: Int = 0): Pair<Long, Long> {

@@ -15,6 +15,7 @@ data class TodoEntity(
     val estimatedMinutes: Int = 0,
     val actualMinutes: Int = 0,
     val pomodoroCount: Int = 0,
+    val priority: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

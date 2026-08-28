@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import io.github.dailytrack.data.db.dao.*
 import io.github.dailytrack.data.db.entity.*
 
@@ -25,9 +27,10 @@ import io.github.dailytrack.data.db.entity.*
         UserProfileEntity::class,
         TodoEntity::class,
         PomodoroSessionEntity::class,
-        SavedQuoteEntity::class
+        SavedQuoteEntity::class,
+        SubtaskEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -46,10 +49,27 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao
     abstract fun pomodoroSessionDao(): PomodoroSessionDao
     abstract fun savedQuoteDao(): SavedQuoteDao
+    abstract fun subtaskDao(): SubtaskDao
 
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE todos ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS subtasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        todoId INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        isCompleted INTEGER NOT NULL DEFAULT 0,
+                        sortOrder INTEGER NOT NULL DEFAULT 0,
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+            }
+        }
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -57,7 +77,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "soultrack.db"
-                ).fallbackToDestructiveMigration()
+                )
+                .addMigrations(MIGRATION_2_3)
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance
                 instance

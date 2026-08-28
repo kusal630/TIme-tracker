@@ -28,10 +28,24 @@
         android:textSize="12sp" />
 
     <TextView
-        android:id="@+id/widget_timer"
+        android:id="@+id/widget_category"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_session_name"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="2dp"
+        android:text="Tap to select category"
+        android:textColor="#80FFFFFF"
+        android:textSize="10sp"
+        android:background="@drawable/widget_button_background"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="2dp" />
+
+    <TextView
+        android:id="@+id/widget_timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_category"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="8dp"
         android:text="00:00:00"

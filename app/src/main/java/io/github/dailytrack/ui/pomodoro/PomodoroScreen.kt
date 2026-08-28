@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +28,7 @@ import io.github.dailytrack.data.api.QuotesApi
 import io.github.dailytrack.service.PomodoroForegroundService
 import io.github.dailytrack.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val quoteColors = listOf(
     Color(0xFFE94560),
@@ -61,13 +63,38 @@ fun PomodoroScreen(
     var selectedCategoryId by remember { mutableLongStateOf(0L) }
     var showFlash by remember { mutableStateOf(false) }
     var flashColor by remember { mutableStateOf(Color(0xFFE94560)) }
+    var flashAlpha by remember { mutableFloatStateOf(0f) }
     
     var currentQuote by remember { mutableStateOf("Loading inspiring quote...") }
     var quoteAuthor by remember { mutableStateOf("") }
     var quoteColor by remember { mutableStateOf(quoteColors[0]) }
     var quoteIndex by remember { mutableIntStateOf(0) }
+    
+    var timerPulse by remember { mutableFloatStateOf(1f) }
+    var cardBorderColor by remember { mutableStateOf(Color.Transparent) }
 
     val isRunning = activePomodoro != null
+    val coroutineScope = rememberCoroutineScope()
+    
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite")
+    val pulseAnim by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+    val borderAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "border_alpha"
+    )
 
     LaunchedEffect(Unit) {
         val quote = QuotesApi.getRandomQuote()
@@ -80,15 +107,21 @@ fun PomodoroScreen(
     LaunchedEffect(activePomodoro) {
         if (activePomodoro != null) {
             isBreak = activePomodoro?.type == "BREAK"
+            elapsedSeconds = (System.currentTimeMillis() - (activePomodoro?.startTime ?: 0L)) / 1000
+            cardBorderColor = if (isBreak) Color(0xFFFFAB40) else Color(0xFF69F0AE)
             while (true) {
-                elapsedSeconds = (System.currentTimeMillis() - (activePomodoro?.startTime ?: 0L)) / 1000
                 delay(1000)
+                elapsedSeconds = (System.currentTimeMillis() - (activePomodoro?.startTime ?: 0L)) / 1000
                 
                 val totalSeconds = (activePomodoro?.durationMinutes ?: 25) * 60L
                 if (elapsedSeconds >= totalSeconds) {
                     showFlash = true
+                    flashAlpha = 1f
                     flashColor = if (isBreak) Color(0xFFE94560) else Color(0xFFFFAB40)
-                    delay(1000)
+                    delay(500)
+                    flashAlpha = 0.7f
+                    delay(300)
+                    flashAlpha = 0f
                     showFlash = false
                     
                     val quote = QuotesApi.getRandomQuote()
@@ -114,6 +147,7 @@ fun PomodoroScreen(
             }
         } else {
             elapsedSeconds = 0
+            cardBorderColor = Color.Transparent
         }
     }
 
@@ -139,35 +173,39 @@ fun PomodoroScreen(
         label = "progress"
     )
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = showFlash,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(flashColor.copy(alpha = 0.8f), flashColor.copy(alpha = 0.4f))
-                        )
-                    )
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Pomodoro Timer") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
             )
         }
-
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Pomodoro Timer") },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                        }
-                    }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            AnimatedVisibility(
+                visible = showFlash,
+                enter = fadeIn(tween(200)),
+                exit = fadeOut(tween(300))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(flashAlpha)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    flashColor.copy(alpha = 0.6f),
+                                    flashColor.copy(alpha = 0.3f)
+                                )
+                            )
+                        )
                 )
             }
-        ) { padding ->
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -177,7 +215,12 @@ fun PomodoroScreen(
             ) {
                 item {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (isRunning) Modifier.scale(pulseAnim)
+                                else Modifier
+                            ),
                         colors = CardDefaults.cardColors(
                             containerColor = if (isRunning && !isBreak) Color(0xFF1A3D1A)
                             else if (isBreak) Color(0xFF3D2A1A)
@@ -193,7 +236,8 @@ fun PomodoroScreen(
                             AnimatedContent(
                                 targetState = if (isBreak) "Break Time" else "Focus Time",
                                 transitionSpec = {
-                                    fadeIn() + slideInVertically() togetherWith fadeOut() + slideOutVertically()
+                                    fadeIn(tween(300)) + slideInVertically(tween(300)) togetherWith 
+                                    fadeOut(tween(300)) + slideOutVertically(tween(300))
                                 },
                                 label = "title_animation"
                             ) { title ->
@@ -216,14 +260,23 @@ fun PomodoroScreen(
                                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds),
-                                        fontSize = 48.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isRunning && !isBreak) Color(0xFF69F0AE)
-                                        else if (isBreak) Color(0xFFFFAB40)
-                                        else MaterialTheme.colorScheme.onSurface
-                                    )
+                                    AnimatedContent(
+                                        targetState = String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds),
+                                        transitionSpec = {
+                                            fadeIn(tween(200)) + slideInVertically(tween(200)) togetherWith 
+                                            fadeOut(tween(200)) + slideOutVertically(tween(200))
+                                        },
+                                        label = "timer_animation"
+                                    ) { time ->
+                                        Text(
+                                            text = time,
+                                            fontSize = 48.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isRunning && !isBreak) Color(0xFF69F0AE)
+                                            else if (isBreak) Color(0xFFFFAB40)
+                                            else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
                             }
                             
@@ -260,7 +313,8 @@ fun PomodoroScreen(
                             AnimatedContent(
                                 targetState = currentQuote,
                                 transitionSpec = {
-                                    fadeIn() + slideInVertically() togetherWith fadeOut() + slideOutVertically()
+                                    fadeIn(tween(400)) + slideInVertically(tween(400)) togetherWith 
+                                    fadeOut(tween(400)) + slideOutVertically(tween(400))
                                 },
                                 label = "quote_animation"
                             ) { quote ->
@@ -274,11 +328,20 @@ fun PomodoroScreen(
                             }
                             if (quoteAuthor.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "— $quoteAuthor",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = quoteColor.copy(alpha = 0.7f)
-                                )
+                                AnimatedContent(
+                                    targetState = quoteAuthor,
+                                    transitionSpec = {
+                                        fadeIn(tween(400)) + slideInVertically(tween(400)) togetherWith 
+                                        fadeOut(tween(400)) + slideOutVertically(tween(400))
+                                    },
+                                    label = "author_animation"
+                                ) { author ->
+                                    Text(
+                                        text = "— $author",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = quoteColor.copy(alpha = 0.7f)
+                                    )
+                                }
                             }
                         }
                     }
@@ -378,8 +441,17 @@ fun PomodoroScreen(
                         Button(
                             onClick = {
                                 showFlash = true
+                                flashAlpha = 1f
                                 flashColor = quoteColor
                                 
+                                coroutineScope.launch {
+                                    delay(500)
+                                    flashAlpha = 0.7f
+                                    delay(300)
+                                    flashAlpha = 0f
+                                    showFlash = false
+                                }
+
                                 val todoTitle = activeTodos.find { it.id == selectedTodoId }?.title ?: ""
                                 val intent = Intent(context, PomodoroForegroundService::class.java).apply {
                                     putExtra(PomodoroForegroundService.EXTRA_START_TIME, System.currentTimeMillis())

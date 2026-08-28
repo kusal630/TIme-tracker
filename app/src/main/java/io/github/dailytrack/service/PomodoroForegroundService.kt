@@ -47,6 +47,7 @@ class PomodoroForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 timerJob?.cancel()
+                notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -54,6 +55,7 @@ class PomodoroForegroundService : Service() {
             ACTION_COMPLETE -> {
                 timerJob?.cancel()
                 playCompletionSound()
+                notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -155,6 +157,12 @@ class PomodoroForegroundService : Service() {
 
         val ringtone = RingtoneManager.getRingtone(this, sound)
         ringtone?.play()
+
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            try {
+                ringtone?.stop()
+            } catch (_: Exception) {}
+        }, 3000)
     }
 
     private fun createNotificationChannels() {
@@ -187,6 +195,7 @@ class PomodoroForegroundService : Service() {
 
     override fun onDestroy() {
         timerJob?.cancel()
+        notificationManager?.cancel(NOTIFICATION_ID)
         scope.cancel()
         super.onDestroy()
     }

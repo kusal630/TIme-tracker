@@ -24,7 +24,8 @@ import io.github.dailytrack.data.db.entity.*
         InsightEntity::class,
         UserProfileEntity::class,
         TodoEntity::class,
-        PomodoroSessionEntity::class
+        PomodoroSessionEntity::class,
+        SavedQuoteEntity::class
     ],
     version = 2,
     exportSchema = true
@@ -44,6 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun todoDao(): TodoDao
     abstract fun pomodoroSessionDao(): PomodoroSessionDao
+    abstract fun savedQuoteDao(): SavedQuoteDao
 
     companion object {
         @Volatile

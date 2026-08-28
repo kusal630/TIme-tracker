@@ -17,6 +17,7 @@ import io.github.dailytrack.ui.pomodoro.PomodoroScreen
 import io.github.dailytrack.ui.insights.InsightsScreen
 import io.github.dailytrack.ui.growth.GrowthScreen
 import io.github.dailytrack.ui.settings.SettingsScreen
+import io.github.dailytrack.ui.savedquotes.SavedQuotesScreen
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Dashboard : Screen("dashboard", "Home", Icons.Default.Home)
@@ -26,6 +27,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object Growth : Screen("growth", "Growth", Icons.Default.TrendingUp)
     data object Insights : Screen("insights", "Insights", Icons.Default.Lightbulb)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+    data object SavedQuotes : Screen("saved_quotes", "Saved Quotes", Icons.Default.Favorite)
 }
 
 val bottomNavItems = listOf(
@@ -88,6 +90,7 @@ fun DailyTrackNavHost() {
             composable(Screen.Growth.route) { GrowthScreen(navController) }
             composable(Screen.Insights.route) { InsightsScreen(navController) }
             composable(Screen.Settings.route) { SettingsScreen(navController) }
+            composable(Screen.SavedQuotes.route) { SavedQuotesScreen(navController) }
         }
     }
 }

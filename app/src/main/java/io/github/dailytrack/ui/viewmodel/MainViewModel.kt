@@ -19,6 +19,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val insightRepo = InsightRepository(db.insightDao())
     private val todoRepo = TodoRepository(db.todoDao())
     private val pomodoroRepo = PomodoroRepository(db.pomodoroSessionDao())
+    private val savedQuoteRepo = SavedQuoteRepository(db.savedQuoteDao())
     private val routineEngine = RoutineLoopEngine()
 
     private val timeEngine = TimeCoverageEngine()
@@ -70,6 +71,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _activePomodoro = MutableStateFlow<PomodoroSessionEntity?>(null)
     val activePomodoro: StateFlow<PomodoroSessionEntity?> = _activePomodoro
 
+    private val _savedQuotes = MutableStateFlow<List<SavedQuoteEntity>>(emptyList())
+    val savedQuotes: StateFlow<List<SavedQuoteEntity>> = _savedQuotes
+
     private val _weeklyStats = MutableStateFlow(WeeklyStats())
     val weeklyStats: StateFlow<WeeklyStats> = _weeklyStats
 
@@ -116,6 +120,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             _selectedDate.collect { date -> loadDayData(date) }
+        }
+
+        viewModelScope.launch {
+            savedQuoteRepo.getAllSavedQuotes().collect { quotes ->
+                _savedQuotes.value = quotes
+            }
         }
     }
 
@@ -269,6 +279,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             pomodoroRepo.insert(pomodoro)
         }
+    }
+
+    fun saveQuote(text: String, author: String) {
+        viewModelScope.launch {
+            val existing = savedQuoteRepo.getQuoteByText(text)
+            if (existing == null) {
+                savedQuoteRepo.insert(SavedQuoteEntity(text = text, author = author))
+            }
+        }
+    }
+
+    fun deleteSavedQuote(quote: SavedQuoteEntity) {
+        viewModelScope.launch {
+            savedQuoteRepo.delete(quote)
+        }
+    }
+
+    fun isQuoteSaved(text: String): Boolean {
+        return _savedQuotes.value.any { it.text == text }
     }
 
     private suspend fun calculateGrowthScore() {

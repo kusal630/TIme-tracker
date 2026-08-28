@@ -223,6 +223,11 @@ fun PomodoroScreen(
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    IconButton(onClick = { navController.navigate("saved_quotes") }) {
+                        Icon(Icons.Default.Favorite, contentDescription = "Saved Quotes")
+                    }
                 }
             )
         }
@@ -349,6 +354,28 @@ fun PomodoroScreen(
                                 .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                val isSaved = viewModel.isQuoteSaved(currentQuote)
+                                IconButton(
+                                    onClick = {
+                                        if (isSaved) {
+                                            val savedQuote = viewModel.savedQuotes.value.find { it.text == currentQuote }
+                                            savedQuote?.let { viewModel.deleteSavedQuote(it) }
+                                        } else {
+                                            viewModel.saveQuote(currentQuote, quoteAuthor)
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                        contentDescription = if (isSaved) "Unsave quote" else "Save quote",
+                                        tint = if (isSaved) Color(0xFFE94560) else animatedQuoteColor
+                                    )
+                                }
+                            }
                             Text(
                                 text = "\"",
                                 style = MaterialTheme.typography.headlineLarge,

@@ -1,6 +1,5 @@
 package io.github.dailytrack.ui.dashboard
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,12 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.dailytrack.data.db.entity.SessionEntity
 import io.github.dailytrack.ui.Screen
-import io.github.dailytrack.ui.components.*
 import io.github.dailytrack.ui.viewmodel.MainViewModel
 import java.time.LocalDate
 import java.time.ZoneId
@@ -290,24 +287,31 @@ fun ActiveSessionCard(
 fun TimeTrackingCard(coverage: io.github.dailytrack.engine.TimeCoverage?) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Time Breakdown",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 MetricItem(
                     "Productive",
-                    formatDuration(coverage?.productiveSeconds ?: 0),
+                    formatDuration((coverage?.productiveSeconds ?: 0) + (coverage?.learningSeconds ?: 0)),
                     Color(0xFF2E7D32)
-                )
-                MetricItem(
-                    "Learning",
-                    formatDuration(coverage?.learningSeconds ?: 0),
-                    Color(0xFF1565C0)
                 )
                 MetricItem(
                     "Exercise",
                     formatDuration(coverage?.exerciseSeconds ?: 0),
                     Color(0xFFE65100)
+                )
+                MetricItem(
+                    "Sleep",
+                    formatDuration(coverage?.sleepSeconds ?: 0),
+                    Color(0xFF311B92)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -316,9 +320,9 @@ fun TimeTrackingCard(coverage: io.github.dailytrack.engine.TimeCoverage?) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 MetricItem(
-                    "Sleep",
-                    formatDuration(coverage?.sleepSeconds ?: 0),
-                    Color(0xFF311B92)
+                    "Wasted",
+                    formatDuration(coverage?.wastedSeconds ?: 0),
+                    Color(0xFFC62828)
                 )
                 MetricItem(
                     "Untracked",

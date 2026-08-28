@@ -1,32 +1,24 @@
 package io.github.dailytrack.engine
 
-import io.github.dailytrack.data.db.entity.SessionEntity
-
 data class GrowthScoreResult(
     val totalScore: Double,
     val learningComponent: Double,
     val productiveComponent: Double,
     val exerciseComponent: Double,
     val sleepComponent: Double,
-    val nutritionComponent: Double,
-    val hydrationComponent: Double,
     val socialComponent: Double,
-    val reflectionComponent: Double,
     val noveltyComponent: Double,
-    val goalComponent: Double
+    val consistencyComponent: Double
 )
 
 data class GrowthWeights(
-    val learning: Double = 0.20,
-    val productive: Double = 0.20,
-    val exercise: Double = 0.15,
+    val learning: Double = 0.25,
+    val productive: Double = 0.25,
+    val exercise: Double = 0.20,
     val sleep: Double = 0.15,
-    val nutrition: Double = 0.10,
-    val hydration: Double = 0.05,
     val social: Double = 0.05,
-    val reflection: Double = 0.05,
     val novelty: Double = 0.05,
-    val goal: Double = 0.05
+    val consistency: Double = 0.05
 )
 
 class GrowthEngine(private val weights: GrowthWeights = GrowthWeights()) {
@@ -36,27 +28,28 @@ class GrowthEngine(private val weights: GrowthWeights = GrowthWeights()) {
         productiveMinutes: Double,
         exerciseMinutes: Double,
         sleepHours: Double,
-        nutritionQualityScore: Double,
-        hydrationScore: Double,
         socialMinutes: Double,
-        hasReflection: Boolean,
         noveltyScore: Double,
-        goalProgress: Double
+        consecutiveDaysActive: Int
     ): GrowthScoreResult {
-        val learningComponent = weights.learning * (learningMinutes.coerceIn(0.0, 180.0) / 180.0) * 100.0
-        val productiveComponent = weights.productive * (productiveMinutes.coerceIn(0.0, 600.0) / 600.0) * 100.0
-        val exerciseComponent = weights.exercise * (exerciseMinutes.coerceIn(0.0, 120.0) / 120.0) * 100.0
-        val sleepComponent = weights.sleep * (sleepHours.coerceIn(0.0, 10.0) / 8.0).coerceAtMost(1.0) * 100.0
-        val nutritionComponent = weights.nutrition * nutritionQualityScore.coerceIn(0.0, 1.0) * 100.0
-        val hydrationComponent = weights.hydration * hydrationScore.coerceIn(0.0, 1.0) * 100.0
-        val socialComponent = weights.social * (socialMinutes.coerceIn(0.0, 120.0) / 120.0) * 100.0
-        val reflectionComponent = weights.reflection * (if (hasReflection) 1.0 else 0.0) * 100.0
-        val noveltyComponent = weights.novelty * noveltyScore.coerceIn(0.0, 1.0) * 100.0
-        val goalComponent = weights.goal * goalProgress.coerceIn(0.0, 1.0) * 100.0
+        val learningScore = normalize(learningMinutes, 0.0, 120.0)
+        val productiveScore = normalize(productiveMinutes, 0.0, 480.0)
+        val exerciseScore = normalize(exerciseMinutes, 0.0, 60.0)
+        val sleepScore = normalize(sleepHours, 0.0, 8.0).coerceAtMost(1.0)
+        val socialScore = normalize(socialMinutes, 0.0, 60.0)
+        val noveltyVal = noveltyScore.coerceIn(0.0, 1.0)
+        val consistencyVal = normalize(consecutiveDaysActive.toDouble(), 0.0, 7.0).coerceAtMost(1.0)
+
+        val learningComponent = weights.learning * learningScore * 100.0
+        val productiveComponent = weights.productive * productiveScore * 100.0
+        val exerciseComponent = weights.exercise * exerciseScore * 100.0
+        val sleepComponent = weights.sleep * sleepScore * 100.0
+        val socialComponent = weights.social * socialScore * 100.0
+        val noveltyComponent = weights.novelty * noveltyVal * 100.0
+        val consistencyComponent = weights.consistency * consistencyVal * 100.0
 
         val totalScore = learningComponent + productiveComponent + exerciseComponent +
-                sleepComponent + nutritionComponent + hydrationComponent +
-                socialComponent + reflectionComponent + noveltyComponent + goalComponent
+                sleepComponent + socialComponent + noveltyComponent + consistencyComponent
 
         return GrowthScoreResult(
             totalScore = totalScore.coerceIn(0.0, 100.0),
@@ -64,12 +57,13 @@ class GrowthEngine(private val weights: GrowthWeights = GrowthWeights()) {
             productiveComponent = productiveComponent,
             exerciseComponent = exerciseComponent,
             sleepComponent = sleepComponent,
-            nutritionComponent = nutritionComponent,
-            hydrationComponent = hydrationComponent,
             socialComponent = socialComponent,
-            reflectionComponent = reflectionComponent,
             noveltyComponent = noveltyComponent,
-            goalComponent = goalComponent
+            consistencyComponent = consistencyComponent
         )
+    }
+
+    private fun normalize(value: Double, min: Double, max: Double): Double {
+        return ((value - min) / (max - min)).coerceIn(0.0, 1.0)
     }
 }

@@ -10,7 +10,6 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import io.github.dailytrack.MainActivity
-import io.github.dailytrack.R
 import kotlinx.coroutines.*
 
 class TimerForegroundService : Service() {
@@ -18,6 +17,7 @@ class TimerForegroundService : Service() {
     private var startTime: Long = 0L
     private var sessionTitle: String = ""
     private var categoryName: String = ""
+    private var notificationManager: NotificationManager? = null
 
     companion object {
         const val CHANNEL_ID = "dailytrack_timer"
@@ -31,6 +31,7 @@ class TimerForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        notificationManager = getSystemService(NotificationManager::class.java)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -48,13 +49,25 @@ class TimerForegroundService : Service() {
         categoryName = intent?.getStringExtra(EXTRA_CATEGORY) ?: ""
 
         startForeground(NOTIFICATION_ID, buildNotification())
+        startNotificationUpdates()
         return START_STICKY
+    }
+
+    private fun startNotificationUpdates() {
+        scope.launch {
+            while (isActive) {
+                notificationManager?.notify(NOTIFICATION_ID, buildNotification())
+                delay(1000)
+            }
+        }
     }
 
     private fun buildNotification(): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this, 0,
-            Intent(this, MainActivity::class.java),
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -71,12 +84,16 @@ class TimerForegroundService : Service() {
         val timeStr = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Timer: $sessionTitle")
-            .setContentText("$categoryName - $timeStr")
+            .setContentTitle(sessionTitle.ifBlank { "Active Session" })
+            .setContentText("Running for $timeStr")
+            .setSubText(categoryName.ifBlank { null })
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setUsesChronometer(false)
             .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
+            .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
@@ -88,6 +105,7 @@ class TimerForegroundService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Shows active timer session"
+                setShowBadge(false)
             }
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)

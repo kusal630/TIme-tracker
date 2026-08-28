@@ -27,6 +27,15 @@ data class TimeCoverage(
             val awakeSeconds = totalDaySeconds - sleepSeconds
             return if (awakeSeconds > 0) productiveSeconds.toDouble() / awakeSeconds else 0.0
         }
+
+    val totalProductiveSeconds: Long
+        get() = productiveSeconds + learningSeconds
+
+    val totalWastedSeconds: Long
+        get() = wastedSeconds
+
+    val awakeUntrackedSeconds: Long
+        get() = untrackedSeconds - sleepSeconds
 }
 
 class TimeCoverageEngine {
@@ -52,6 +61,8 @@ class TimeCoverageEngine {
         var recoverySeconds = 0L
 
         for (session in sessions) {
+            if (session.isActive) continue
+
             val sessionStart = maxOf(session.startTime, dayStart)
             val sessionEnd = minOf(session.endTime ?: dayEnd, dayEnd)
             if (sessionEnd > sessionStart) {

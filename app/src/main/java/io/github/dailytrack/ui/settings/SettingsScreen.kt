@@ -1,6 +1,5 @@
 package io.github.dailytrack.ui.settings
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,22 +17,14 @@ import androidx.navigation.NavController
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(navController: NavController) {
-    var age by remember { mutableStateOf("") }
-    var height by remember { mutableStateOf("") }
-    var weight by remember { mutableStateOf("") }
     var productiveMinutes by remember { mutableStateOf("60") }
     var learningMinutes by remember { mutableStateOf("30") }
     var exerciseMinutes by remember { mutableStateOf("30") }
     var sleepTarget by remember { mutableStateOf("8") }
-    var waterTarget by remember { mutableStateOf("2000") }
 
     var enableNutrition by remember { mutableStateOf(true) }
-    var enableBodyMetrics by remember { mutableStateOf(true) }
-    var enableHydration by remember { mutableStateOf(true) }
     var enableExercise by remember { mutableStateOf(true) }
     var maintenanceMode by remember { mutableStateOf(false) }
-    var fluidRestriction by remember { mutableStateOf(false) }
-    var hideWeight by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -59,42 +50,11 @@ fun SettingsScreen(navController: NavController) {
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                SettingsSection(title = "Profile", icon = Icons.Default.Person) {
-                    OutlinedTextField(
-                        value = age,
-                        onValueChange = { age = it },
-                        label = { Text("Age") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null) }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = height,
-                            onValueChange = { height = it },
-                            label = { Text("Height (cm)") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = weight,
-                            onValueChange = { weight = it },
-                            label = { Text("Weight (kg)") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                    }
-                }
-            }
-
-            item {
                 SettingsSection(title = "Targets", icon = Icons.Default.Flag) {
                     TargetInput("Productive minutes/day", productiveMinutes) { productiveMinutes = it }
                     TargetInput("Learning minutes/day", learningMinutes) { learningMinutes = it }
                     TargetInput("Exercise minutes/day", exerciseMinutes) { exerciseMinutes = it }
                     TargetInput("Sleep target (hours)", sleepTarget) { sleepTarget = it }
-                    TargetInput("Water target (ml)", waterTarget) { waterTarget = it }
                 }
             }
 
@@ -107,17 +67,13 @@ fun SettingsScreen(navController: NavController) {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     ModuleSwitch("Food & Nutrition", Icons.Default.Restaurant, enableNutrition) { enableNutrition = it }
-                    ModuleSwitch("Hydration Tracking", Icons.Default.WaterDrop, enableHydration) { enableHydration = it }
                     ModuleSwitch("Exercise & Movement", Icons.Default.FitnessCenter, enableExercise) { enableExercise = it }
-                    ModuleSwitch("Body Metrics", Icons.Default.MonitorHeart, enableBodyMetrics) { enableBodyMetrics = it }
                 }
             }
 
             item {
                 SettingsSection(title = "Privacy", icon = Icons.Default.Shield) {
-                    PrivacySwitch("Hide weight & calories", Icons.Default.VisibilityOff, hideWeight) { hideWeight = it }
                     PrivacySwitch("Maintenance mode", Icons.Default.Pause, maintenanceMode) { maintenanceMode = it }
-                    PrivacySwitch("Fluid restriction", Icons.Default.WaterDrop, fluidRestriction) { fluidRestriction = it }
                 }
             }
 

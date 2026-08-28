@@ -41,6 +41,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _growthScore = MutableStateFlow(0.0)
     val growthScore: StateFlow<Double> = _growthScore
 
+    private val _growthResult = MutableStateFlow<GrowthScoreResult?>(null)
+    val growthResult: StateFlow<GrowthScoreResult?> = _growthResult
+
     private val _activeInsights = MutableStateFlow<List<InsightEntity>>(emptyList())
     val activeInsights: StateFlow<List<InsightEntity>> = _activeInsights
 
@@ -151,6 +154,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         var sleepHours = 0.0
 
         for (session in sessions) {
+            if (session.isActive) continue
             val duration = ((session.endTime ?: dayEnd) - session.startTime) / 60000.0
             val cat = session.categoryId?.let { cats[it] }
             val catType = cat?.type ?: session.type
@@ -158,31 +162,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             when (catType) {
                 "LEARNING" -> learningMinutes += duration
                 "PRODUCTIVE" -> productiveMinutes += duration
+                "ACTIVITY" -> productiveMinutes += duration
                 "EXERCISE" -> exerciseMinutes += duration
                 "SOCIAL" -> socialMinutes += duration
                 "SLEEP" -> sleepHours += duration / 60.0
-                "ACTIVITY" -> productiveMinutes += duration
             }
         }
 
-        val hasReflection = sessions.isNotEmpty()
-        val noveltyScore = if (sessions.size > 2) 0.7 else 0.3
-        val goalProgress = (productiveMinutes / 60.0).coerceAtMost(1.0)
+        var consecutiveDaysActive = 0
+        for (i in 0..6) {
+            val date = today.minusDays(i.toLong())
+            val (dStart, dEnd) = getDayRange(date, zone)
+            val daySessions = sessionRepo.getSessionsForDaySync(dStart, dEnd).filter { !it.isActive }
+            if (daySessions.isNotEmpty()) {
+                consecutiveDaysActive++
+            } else {
+                break
+            }
+        }
+
+        val noveltyScore = when {
+            sessions.size > 5 -> 0.9
+            sessions.size > 3 -> 0.7
+            sessions.size > 1 -> 0.5
+            else -> 0.2
+        }
 
         val result = growthEngine.calculateGrowthScore(
             learningMinutes = learningMinutes,
             productiveMinutes = productiveMinutes,
             exerciseMinutes = exerciseMinutes,
             sleepHours = sleepHours,
-            nutritionQualityScore = 0.5,
-            hydrationScore = 0.5,
             socialMinutes = socialMinutes,
-            hasReflection = hasReflection,
             noveltyScore = noveltyScore,
-            goalProgress = goalProgress
+            consecutiveDaysActive = consecutiveDaysActive
         )
 
         _growthScore.value = result.totalScore
+        _growthResult.value = result
     }
 
     private suspend fun detectLoop() {
@@ -207,10 +224,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val vector = routineEngine.calculateDailyRoutineVector(sessions, categoryDurations)
             dailyVectors.add(vector)
-            growthScores.add(30.0)
+            growthScores.add(_growthScore.value)
         }
 
-        val noveltyScores = List(7) { 30.0 }
+        val noveltyScores = List(7) { 50.0 }
         _loopStatus.value = routineEngine.detectLoop(dailyVectors, growthScores, noveltyScores)
     }
 
@@ -233,7 +250,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val totalMinutes = sessions.sumOf { s ->
-            ((s.endTime ?: dayEnd) - s.startTime) / 60000.0
+            if (s.isActive) 0.0 else ((s.endTime ?: dayEnd) - s.startTime) / 60000.0
         }
 
         val loop = _loopStatus.value
@@ -243,7 +260,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             hasLearningToday = hasLearning,
             growthScoreTrend = listOf(growthScore),
             wastedTimeRatio = 0.0,
-            productiveRatio = if (totalMinutes > 0) (totalMinutes / 1440.0) else 0.0,
+            productiveRatio = if (totalMinutes > 0.0) (totalMinutes / 1440.0) else 0.0,
             sleepDebtHours = 0.0,
             lowHydration = false,
             lowProteinDays = 0,
@@ -252,10 +269,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             noNewActivitiesDays = if (loop?.isLoopDetected == true) 5 else 0,
             noMovementToday = !hasExercise,
             noReflectionToday = false,
-            exerciseMinutes = sessions.filter { it.type == "EXERCISE" }.sumOf {
+            exerciseMinutes = sessions.filter { !it.isActive && (it.type == "EXERCISE" || cats[it.categoryId]?.type == "EXERCISE") }.sumOf {
                 ((it.endTime ?: dayEnd) - it.startTime) / 60000.0
             },
-            sleepHours = sessions.filter { it.type == "SLEEP" }.sumOf {
+            sleepHours = sessions.filter { !it.isActive && (it.type == "SLEEP" || cats[it.categoryId]?.type == "SLEEP") }.sumOf {
                 ((it.endTime ?: dayEnd) - it.startTime) / 3600000.0
             },
             fatigueLevel = 2,

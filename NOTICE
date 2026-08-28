@@ -1,0 +1,44 @@
+Soul Track
+Copyright 2024 Soul Track Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+This product includes quotes from various authors. The quotes are
+in the public domain or used under fair use for educational purposes.
+Authors include but are not limited to: Steve Jobs, Theodore Roosevelt,
+Walt Disney, Nelson Mandela, Confucius, Aristotle, Winston Churchill,
+Albert Einstein, Maya Angelou, Mahatma Gandhi, and others as listed
+in the application source code.
+
+This product uses the following open source libraries:
+
+- AndroidX libraries (https://developer.android.com/jetpack/androidx)
+  Licensed under the Apache License, Version 2.0
+
+- Kotlin Standard Library (https://kotlinlang.org/)
+  Licensed under the Apache License, Version 2.0
+
+- Kotlin Coroutines (https://github.com/Kotlin/kotlinx.coroutines)
+  Licensed under the Apache License, Version 2.0
+
+- Jetpack Compose (https://developer.android.com/jetpack/compose)
+  Licensed under the Apache License, Version 2.0
+
+- Room Persistence Library (https://developer.android.com/training/data-storage/room)
+  Licensed under the Apache License, Version 2.0
+
+- WorkManager (https://developer.android.com/topic/libraries/architecture/workmanager)
+  Licensed under the Apache License, Version 2.0
+
+- DataStore (https://developer.android.com/topic/libraries/architecture/datastore)
+  Licensed under the Apache License, Version 2.0

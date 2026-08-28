@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import io.github.dailytrack.MainActivity
+import io.github.dailytrack.widget.TimerWidgetProvider
 import kotlinx.coroutines.*
 
 class TimerForegroundService : Service() {
@@ -18,9 +19,10 @@ class TimerForegroundService : Service() {
     private var sessionTitle: String = ""
     private var categoryName: String = ""
     private var notificationManager: NotificationManager? = null
+    private var timerJob: Job? = null
 
     companion object {
-        const val CHANNEL_ID = "dailytrack_timer"
+        const val CHANNEL_ID = "soultrack_timer"
         const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "io.github.dailytrack.STOP_TIMER"
         const val EXTRA_START_TIME = "start_time"
@@ -37,6 +39,7 @@ class TimerForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                timerJob?.cancel()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -48,15 +51,19 @@ class TimerForegroundService : Service() {
         sessionTitle = intent?.getStringExtra(EXTRA_TITLE) ?: "Active Session"
         categoryName = intent?.getStringExtra(EXTRA_CATEGORY) ?: ""
 
-        startForeground(NOTIFICATION_ID, buildNotification())
+        val notification = buildNotification()
+        startForeground(NOTIFICATION_ID, notification)
         startNotificationUpdates()
         return START_STICKY
     }
 
     private fun startNotificationUpdates() {
-        scope.launch {
+        timerJob?.cancel()
+        timerJob = scope.launch {
             while (isActive) {
-                notificationManager?.notify(NOTIFICATION_ID, buildNotification())
+                val notification = buildNotification()
+                notificationManager?.notify(NOTIFICATION_ID, notification)
+                TimerWidgetProvider.updateWidgets(this@TimerForegroundService)
                 delay(1000)
             }
         }
@@ -85,15 +92,17 @@ class TimerForegroundService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(sessionTitle.ifBlank { "Active Session" })
-            .setContentText("Running for $timeStr")
+            .setContentText("Running: $timeStr")
             .setSubText(categoryName.ifBlank { null })
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setUsesChronometer(false)
+            .setShowWhen(false)
             .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .build()
     }
 
@@ -115,6 +124,7 @@ class TimerForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        timerJob?.cancel()
         scope.cancel()
         super.onDestroy()
     }

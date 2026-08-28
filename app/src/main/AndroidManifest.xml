@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:name=".DailyTrackApp"
+        android:name=".SoulTrackApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -26,6 +26,21 @@
             android:name=".service.TimerForegroundService"
             android:foregroundServiceType="specialUse"
             android:exported="false" />
+
+        <receiver
+            android:name=".widget.TimerWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="io.github.dailytrack.ACTION_WIDGET_START" />
+                <action android:name="io.github.dailytrack.ACTION_WIDGET_STOP" />
+                <action android:name="io.github.dailytrack.ACTION_WIDGET_RESET" />
+                <action android:name="io.github.dailytrack.ACTION_WIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_timer_info" />
+        </receiver>
 
     </application>
 

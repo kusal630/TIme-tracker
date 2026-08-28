@@ -3,7 +3,7 @@ package io.github.dailytrack.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.dailytrack.DailyTrackApp
+import io.github.dailytrack.SoulTrackApp
 import io.github.dailytrack.data.db.entity.*
 import io.github.dailytrack.data.repository.*
 import io.github.dailytrack.engine.*
@@ -13,7 +13,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = (application as DailyTrackApp).database
+    private val db = (application as SoulTrackApp).database
     private val sessionRepo = SessionRepository(db.sessionDao())
     private val categoryRepo = CategoryRepository(db.categoryDao())
     private val insightRepo = InsightRepository(db.insightDao())

@@ -174,8 +174,10 @@ class SyncRepository(
         return runBlocking {
             val allTodos = todoDao.getAllTodosSync()
             allTodos.map { todo ->
+                val syncId = getOrCreateSyncId("todo_${todo.id}")
+                storeSyncMapping(syncId, todo.id, "todo")
                 SyncTodo(
-                    id = getOrCreateSyncId("todo_${todo.id}"),
+                    id = syncId,
                     localId = todo.id,
                     title = todo.title,
                     description = todo.description,
@@ -205,8 +207,10 @@ class SyncRepository(
             for (todo in allTodos) {
                 val todoSubtasks = subtaskDao.getSubtasksForTodoSync(todo.id)
                 for (st in todoSubtasks) {
+                    val syncId = getOrCreateSyncId("subtask_${st.id}")
+                    storeSyncMapping(syncId, st.id, "subtask")
                     subtasks.add(SyncSubtask(
-                        id = getOrCreateSyncId("subtask_${st.id}"),
+                        id = syncId,
                         localId = st.id,
                         todoId = getOrCreateSyncId("todo_${todo.id}"),
                         title = st.title,
@@ -227,8 +231,10 @@ class SyncRepository(
         return runBlocking {
             val sessions = sessionDao.getAllSessionsSync()
             sessions.map { session ->
+                val syncId = getOrCreateSyncId("session_${session.id}")
+                storeSyncMapping(syncId, session.id, "session")
                 SyncSession(
-                    id = getOrCreateSyncId("session_${session.id}"),
+                    id = syncId,
                     localId = session.id,
                     title = session.title,
                     categoryId = session.categoryId,
@@ -252,8 +258,10 @@ class SyncRepository(
         return runBlocking {
             val pomodoros = pomodoroDao.getAllPomodorosSync()
             pomodoros.map { pom ->
+                val syncId = getOrCreateSyncId("pomodoro_${pom.id}")
+                storeSyncMapping(syncId, pom.id, "pomodoro")
                 SyncPomodoroSession(
-                    id = getOrCreateSyncId("pomodoro_${pom.id}"),
+                    id = syncId,
                     localId = pom.id,
                     todoId = pom.todoId?.let { getOrCreateSyncId("todo_$it") },
                     categoryId = pom.categoryId,
@@ -329,6 +337,13 @@ class SyncRepository(
                 }
             }
         } else if (!syncTodo.deleted) {
+            val duplicate = runBlocking {
+                todoDao.getAllTodosSync().any {
+                    it.title == syncTodo.title && it.description == syncTodo.description
+                }
+            }
+            if (duplicate) return
+
             val newId = runBlocking {
                 todoDao.insert(TodoEntity(
                     title = syncTodo.title,
@@ -552,6 +567,10 @@ class SyncRepository(
             prefs.edit().putString("sync_id_$key", id).apply()
         }
         return id
+    }
+
+    private fun storeSyncMapping(syncId: String, localId: Long, entityType: String) {
+        prefs.edit().putLong("sync_${entityType}_${syncId}", localId).apply()
     }
 
     private fun parseDate(dateStr: String): Long {

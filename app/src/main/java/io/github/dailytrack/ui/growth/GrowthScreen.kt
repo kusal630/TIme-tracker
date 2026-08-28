@@ -86,11 +86,105 @@ fun GrowthScoreDetailCard(score: Double, result: GrowthScoreResult?) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                "Today's progress",
+                when {
+                    score >= 80 -> "Excellent growth day"
+                    score >= 60 -> "Good growth day"
+                    score >= 40 -> "Moderate growth day"
+                    score >= 20 -> "Low growth day"
+                    score > 0 -> "Minimal activity today"
+                    else -> "No activity tracked today"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                "How It Works",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Your score reflects balanced activity across 7 areas of personal growth:",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            ScoreGuideRow("25%", "Learning", "Target: 2h/day", Color(0xFF1565C0))
+            ScoreGuideRow("25%", "Productive Work", "Target: 4h/day", Color(0xFF2E7D32))
+            ScoreGuideRow("20%", "Exercise", "Target: 1h/day", Color(0xFFE65100))
+            ScoreGuideRow("15%", "Sleep", "Target: 7-9h", Color(0xFF311B92))
+            ScoreGuideRow("5%", "Social", "Target: 30min/day", Color(0xFF6A1B9A))
+            ScoreGuideRow("5%", "Novelty", "Trying new things", Color(0xFF00838F))
+            ScoreGuideRow("5%", "Consistency", "Active streak (7 days)", Color(0xFF4E342E))
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(
+                        "Scoring Guide",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("70-100: Excellent — strong balanced growth", style = MaterialTheme.typography.bodySmall)
+                    Text("40-69: Good — consistent progress in key areas", style = MaterialTheme.typography.bodySmall)
+                    Text("20-39: Fair — some activity, room to improve", style = MaterialTheme.typography.bodySmall)
+                    Text("1-19: Low — minimal activity today", style = MaterialTheme.typography.bodySmall)
+                    Text("0: Rest day or no data yet", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Bonuses: Balance across all areas (+3), High focus time (+2)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
+    }
+}
+
+@Composable
+fun ScoreGuideRow(percentage: String, label: String, target: String, color: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = color.copy(alpha = 0.15f),
+            shape = MaterialTheme.shapes.extraSmall
+        ) {
+            Text(
+                text = percentage,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            target,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -99,7 +193,7 @@ fun GrowthComponentsCard(result: GrowthScoreResult?, coverage: io.github.dailytr
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Growth Components",
+                "Today's Breakdown",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -107,42 +201,49 @@ fun GrowthComponentsCard(result: GrowthScoreResult?, coverage: io.github.dailytr
             GrowthComponentRow(
                 "Learning",
                 formatMinutes(coverage?.learningSeconds ?: 0),
+                "2h target",
                 result?.learningComponent ?: 0.0,
                 Color(0xFF1565C0)
             )
             GrowthComponentRow(
                 "Productive",
                 formatMinutes(coverage?.productiveSeconds ?: 0),
+                "4h target",
                 result?.productiveComponent ?: 0.0,
                 Color(0xFF2E7D32)
             )
             GrowthComponentRow(
                 "Exercise",
                 formatMinutes(coverage?.exerciseSeconds ?: 0),
+                "1h target",
                 result?.exerciseComponent ?: 0.0,
                 Color(0xFFE65100)
             )
             GrowthComponentRow(
                 "Sleep",
                 formatHoursMinutes(coverage?.sleepSeconds ?: 0),
+                "7-9h target",
                 result?.sleepComponent ?: 0.0,
                 Color(0xFF311B92)
             )
             GrowthComponentRow(
                 "Social",
                 formatMinutes(coverage?.socialSeconds ?: 0),
+                "30m target",
                 result?.socialComponent ?: 0.0,
                 Color(0xFF6A1B9A)
             )
             GrowthComponentRow(
                 "Novelty",
                 "--",
+                "Variety",
                 result?.noveltyComponent ?: 0.0,
                 Color(0xFF00838F)
             )
             GrowthComponentRow(
                 "Consistency",
                 "${((result?.consistencyComponent ?: 0.0) / 5.0 * 7).toInt()}/7 days",
+                "Streak",
                 result?.consistencyComponent ?: 0.0,
                 Color(0xFF4E342E)
             )
@@ -151,24 +252,34 @@ fun GrowthComponentsCard(result: GrowthScoreResult?, coverage: io.github.dailytr
 }
 
 @Composable
-fun GrowthComponentRow(label: String, value: String, score: Double, color: Color, totalScore: Double = 100.0) {
-    val percentage = if (totalScore > 0) (score / totalScore * 100).toInt() else 0
+fun GrowthComponentRow(label: String, value: String, target: String, score: Double, color: Color, totalScore: Double = 100.0) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Text(
-            "${score.toInt()} pts",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
-            color = color,
-            modifier = Modifier.weight(0.5f)
-        )
+        Surface(
+            color = color.copy(alpha = 0.15f),
+            shape = MaterialTheme.shapes.extraSmall
+        ) {
+            Text(
+                text = "${score.toInt()}",
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(
+                "$value (target: $target)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

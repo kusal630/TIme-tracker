@@ -48,13 +48,22 @@ class GrowthEngine(private val weights: GrowthWeights = GrowthWeights()) {
             )
         }
 
-        val learningScore = normalize(learningMinutes, 0.0, 120.0)
-        val productiveScore = normalize(productiveMinutes, 0.0, 480.0)
-        val exerciseScore = normalize(exerciseMinutes, 0.0, 60.0)
-        val sleepScore = normalize(sleepHours, 0.0, 8.0).coerceAtMost(1.0)
-        val socialScore = normalize(socialMinutes, 0.0, 60.0)
+        val learningScore = cappedNormalized(learningMinutes, TARGET_LEARNING_MINUTES)
+        val productiveScore = cappedNormalized(productiveMinutes, TARGET_PRODUCTIVE_MINUTES)
+        val exerciseScore = cappedNormalized(exerciseMinutes, TARGET_EXERCISE_MINUTES)
+        val socialScore = cappedNormalized(socialMinutes, TARGET_SOCIAL_MINUTES)
+
+        val sleepScore = when {
+            sleepHours <= 0.0 -> 0.0
+            sleepHours in 6.0..9.0 -> 1.0
+            sleepHours in 5.0..<6.0 -> 0.6
+            sleepHours in 9.0..<10.0 -> 0.8
+            sleepHours < 5.0 -> 0.3
+            else -> 0.5
+        }
+
         val noveltyVal = if (hasAnyActivity) noveltyScore.coerceIn(0.0, 1.0) else 0.0
-        val consistencyVal = normalize(consecutiveDaysActive.toDouble(), 0.0, 7.0).coerceAtMost(1.0)
+        val consistencyVal = (consecutiveDaysActive.toDouble() / 7.0).coerceAtMost(1.0)
 
         val learningComponent = weights.learning * learningScore * 100.0
         val productiveComponent = weights.productive * productiveScore * 100.0
@@ -64,11 +73,16 @@ class GrowthEngine(private val weights: GrowthWeights = GrowthWeights()) {
         val noveltyComponent = weights.novelty * noveltyVal * 100.0
         val consistencyComponent = weights.consistency * consistencyVal * 100.0
 
-        val totalScore = learningComponent + productiveComponent + exerciseComponent +
+        val baseScore = learningComponent + productiveComponent + exerciseComponent +
                 sleepComponent + socialComponent + noveltyComponent + consistencyComponent
 
+        val balanceBonus = calculateBalanceBonus(learningScore, productiveScore, exerciseScore)
+        val intensityBonus = calculateIntensityBonus(productiveMinutes, learningMinutes)
+
+        val totalScore = (baseScore + balanceBonus + intensityBonus).coerceIn(0.0, 100.0)
+
         return GrowthScoreResult(
-            totalScore = totalScore.coerceIn(0.0, 100.0),
+            totalScore = totalScore,
             learningComponent = learningComponent,
             productiveComponent = productiveComponent,
             exerciseComponent = exerciseComponent,
@@ -79,7 +93,35 @@ class GrowthEngine(private val weights: GrowthWeights = GrowthWeights()) {
         )
     }
 
-    private fun normalize(value: Double, min: Double, max: Double): Double {
-        return ((value - min) / (max - min)).coerceIn(0.0, 1.0)
+    private fun calculateBalanceBonus(learning: Double, productive: Double, exercise: Double): Double {
+        val minScore = minOf(learning, productive, exercise)
+        return when {
+            minScore >= 0.7 -> 3.0
+            minScore >= 0.5 -> 2.0
+            minScore >= 0.3 -> 1.0
+            else -> 0.0
+        }
+    }
+
+    private fun calculateIntensityBonus(productiveMinutes: Double, learningMinutes: Double): Double {
+        val totalFocus = productiveMinutes + learningMinutes
+        return when {
+            totalFocus >= 360.0 -> 2.0
+            totalFocus >= 240.0 -> 1.5
+            totalFocus >= 180.0 -> 1.0
+            else -> 0.0
+        }
+    }
+
+    private fun cappedNormalized(value: Double, target: Double): Double {
+        if (value <= 0.0) return 0.0
+        return (value / target).coerceAtMost(1.0)
+    }
+
+    companion object {
+        const val TARGET_LEARNING_MINUTES = 120.0
+        const val TARGET_PRODUCTIVE_MINUTES = 240.0
+        const val TARGET_EXERCISE_MINUTES = 60.0
+        const val TARGET_SOCIAL_MINUTES = 30.0
     }
 }

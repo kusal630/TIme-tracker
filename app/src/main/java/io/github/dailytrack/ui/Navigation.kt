@@ -12,37 +12,22 @@ import androidx.navigation.compose.*
 import io.github.dailytrack.ui.dashboard.DashboardScreen
 import io.github.dailytrack.ui.timer.TimerScreen
 import io.github.dailytrack.ui.food.FoodLogScreen
-import io.github.dailytrack.ui.nutrition.NutritionScreen
-import io.github.dailytrack.ui.sleep.SleepScreen
-import io.github.dailytrack.ui.exercise.ExerciseScreen
-import io.github.dailytrack.ui.body.BodySystemsScreen
 import io.github.dailytrack.ui.growth.GrowthScreen
-import io.github.dailytrack.ui.history.HistoryScreen
-import io.github.dailytrack.ui.analytics.AnalyticsScreen
 import io.github.dailytrack.ui.insights.InsightsScreen
-import io.github.dailytrack.ui.journal.JournalScreen
 import io.github.dailytrack.ui.settings.SettingsScreen
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    data object Dashboard : Screen("dashboard", "Today", Icons.Default.Home)
+    data object Dashboard : Screen("dashboard", "Home", Icons.Default.Home)
     data object Timer : Screen("timer", "Timer", Icons.Default.Timer)
-    data object Food : Screen("food", "Food", Icons.Default.Restaurant)
-    data object Nutrition : Screen("nutrition", "Nutrition", Icons.Default.Analytics)
-    data object Sleep : Screen("sleep", "Sleep", Icons.Default.Bedtime)
-    data object Exercise : Screen("exercise", "Exercise", Icons.Default.FitnessCenter)
-    data object Body : Screen("body", "Body", Icons.Default.MonitorHeart)
     data object Growth : Screen("growth", "Growth", Icons.Default.TrendingUp)
-    data object History : Screen("history", "History", Icons.Default.CalendarMonth)
-    data object Analytics : Screen("analytics", "Analytics", Icons.Default.BarChart)
     data object Insights : Screen("insights", "Insights", Icons.Default.Lightbulb)
-    data object Journal : Screen("journal", "Journal", Icons.Default.MenuBook)
+    data object Food : Screen("food", "Food", Icons.Default.Restaurant)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
 val bottomNavItems = listOf(
     Screen.Dashboard,
     Screen.Timer,
-    Screen.Food,
     Screen.Growth,
     Screen.Insights,
 )
@@ -83,15 +68,8 @@ fun DailyTrackNavHost() {
             composable(Screen.Dashboard.route) { DashboardScreen(navController) }
             composable(Screen.Timer.route) { TimerScreen(navController) }
             composable(Screen.Food.route) { FoodLogScreen(navController) }
-            composable(Screen.Nutrition.route) { NutritionScreen(navController) }
-            composable(Screen.Sleep.route) { SleepScreen(navController) }
-            composable(Screen.Exercise.route) { ExerciseScreen(navController) }
-            composable(Screen.Body.route) { BodySystemsScreen(navController) }
             composable(Screen.Growth.route) { GrowthScreen(navController) }
-            composable(Screen.History.route) { HistoryScreen(navController) }
-            composable(Screen.Analytics.route) { AnalyticsScreen(navController) }
             composable(Screen.Insights.route) { InsightsScreen(navController) }
-            composable(Screen.Journal.route) { JournalScreen(navController) }
             composable(Screen.Settings.route) { SettingsScreen(navController) }
         }
     }

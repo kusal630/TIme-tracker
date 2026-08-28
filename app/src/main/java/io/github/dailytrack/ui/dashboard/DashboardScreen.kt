@@ -16,10 +16,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import io.github.dailytrack.data.db.entity.SessionEntity
 import io.github.dailytrack.ui.Screen
 import io.github.dailytrack.ui.components.*
 import io.github.dailytrack.ui.viewmodel.MainViewModel
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
@@ -32,11 +34,13 @@ fun DashboardScreen(
     val selectedDate by viewModel.selectedDate.collectAsState()
     val todaySessions by viewModel.todaySessions.collectAsState()
     val todayCoverage by viewModel.todayCoverage.collectAsState()
-    val todayWater by viewModel.todayWater.collectAsState()
-    val todayCalories by viewModel.todayCalories.collectAsState()
     val growthScore by viewModel.growthScore.collectAsState()
     val activeInsights by viewModel.activeInsights.collectAsState()
     val activeSession by viewModel.activeSession.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val loopStatus by viewModel.loopStatus.collectAsState()
+
+    val completedSessions = todaySessions.filter { !it.isActive }
 
     Scaffold(
         topBar = {
@@ -79,7 +83,11 @@ fun DashboardScreen(
 
             if (activeSession != null) {
                 item {
-                    ActiveSessionCard(activeSession = activeSession!!, onStop = { viewModel.stopSession() })
+                    ActiveSessionCard(
+                        activeSession = activeSession!!,
+                        categoryName = activeSession!!.categoryId?.let { categories[it]?.name } ?: "",
+                        onStop = { viewModel.stopSession() }
+                    )
                 }
             }
 
@@ -88,19 +96,77 @@ fun DashboardScreen(
             }
 
             item {
-                QuickActionsRow(navController, hasActiveSession = activeSession != null)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilledTonalButton(
+                        onClick = { navController.navigate(Screen.Timer.route) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            if (activeSession != null) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (activeSession != null) "View Timer" else "Start Timer")
+                    }
+                    FilledTonalButton(
+                        onClick = { navController.navigate(Screen.Growth.route) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.TrendingUp, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Growth")
+                    }
+                }
+            }
+
+            if (loopStatus?.isLoopDetected == true) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Repeat,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "Routine Loop Detected",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Your routine has been similar for ${loopStatus?.consecutiveDays} days. Consider adding something new.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             item {
                 GrowthScoreCard(score = growthScore)
             }
 
-            item {
-                HealthOverviewRow(
-                    navController = navController,
-                    waterMl = todayWater,
-                    calories = todayCalories
-                )
+            if (completedSessions.isNotEmpty()) {
+                item {
+                    SectionHeader(title = "Completed Today (${completedSessions.size})")
+                }
+                items(completedSessions, key = { it.id }) { session ->
+                    CompletedSessionCard(session = session, categories = categories)
+                }
             }
 
             if (activeInsights.isNotEmpty()) {
@@ -110,10 +176,6 @@ fun DashboardScreen(
                 items(activeInsights.take(3)) { insight ->
                     InsightCard(insight = insight, onDismiss = { viewModel.dismissInsight(insight.id) })
                 }
-            }
-
-            item {
-                MedicalDisclaimerCard()
             }
         }
     }
@@ -163,7 +225,11 @@ fun DatePickerCard(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit)
 }
 
 @Composable
-fun ActiveSessionCard(activeSession: io.github.dailytrack.data.db.entity.SessionEntity, onStop: () -> Unit) {
+fun ActiveSessionCard(
+    activeSession: SessionEntity,
+    categoryName: String,
+    onStop: () -> Unit
+) {
     var elapsed by remember { mutableLongStateOf(System.currentTimeMillis() - activeSession.startTime) }
 
     LaunchedEffect(activeSession.startTime) {
@@ -183,31 +249,39 @@ fun ActiveSessionCard(activeSession: io.github.dailytrack.data.db.entity.Session
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = activeSession.title.ifBlank { "Active Session" },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = activeSession.title.ifBlank { "Active Session" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (categoryName.isNotBlank()) {
+                        Text(
+                            text = categoryName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                FilledTonalButton(onClick = onStop) {
+                    Icon(Icons.Default.Stop, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Stop")
+                }
             }
-            FilledTonalButton(onClick = onStop) {
-                Icon(Icons.Default.Stop, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Stop")
-            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds),
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -253,7 +327,7 @@ fun TimeTrackingCard(coverage: io.github.dailytrack.engine.TimeCoverage?) {
                 )
                 MetricItem(
                     "Tracked",
-                    "${((coverage?.trackedRatio ?: 0.0) * 100).toInt()}%",
+                    formatDuration(coverage?.trackedSeconds ?: 0),
                     MaterialTheme.colorScheme.primary
                 )
             }
@@ -288,55 +362,73 @@ fun MetricItem(label: String, value: String, color: Color) {
 }
 
 @Composable
-fun QuickActionsRow(navController: NavController, hasActiveSession: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        FilledTonalButton(
-            onClick = { navController.navigate(Screen.Timer.route) },
-            modifier = Modifier.weight(1f),
-            colors = if (hasActiveSession) ButtonDefaults.filledTonalButtonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            ) else ButtonDefaults.filledTonalButtonColors()
+fun CompletedSessionCard(
+    session: SessionEntity,
+    categories: Map<Long, io.github.dailytrack.data.db.entity.CategoryEntity>
+) {
+    val duration = if (session.endTime != null) {
+        session.endTime - session.startTime
+    } else 0L
+
+    val hours = TimeUnit.MILLISECONDS.toHours(duration)
+    val minutes = TimeUnit.MILLISECONDS.toMinutes(duration) % 60
+
+    val categoryName = session.categoryId?.let { categories[it]?.name } ?: ""
+    val startTimeStr = java.time.Instant.ofEpochMilli(session.startTime)
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("HH:mm"))
+    val endTimeStr = session.endTime?.let {
+        java.time.Instant.ofEpochMilli(it)
+            .atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("HH:mm"))
+    } ?: ""
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
-                Icon(
-                    if (hasActiveSession) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = null
+            Icon(
+                Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = Color(0xFF2E7D32),
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = session.title.ifBlank { "Session" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(if (hasActiveSession) "View Timer" else "Start Timer", fontSize = 11.sp)
+                Row {
+                    if (categoryName.isNotBlank()) {
+                        Text(
+                            text = categoryName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = " · ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "$startTimeStr - $endTimeStr",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-        }
-        FilledTonalButton(
-            onClick = { navController.navigate(Screen.Food.route) },
-            modifier = Modifier.weight(1f)
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
-                Icon(Icons.Default.Restaurant, contentDescription = null)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("Log Food", fontSize = 11.sp)
-            }
-        }
-        FilledTonalButton(
-            onClick = { navController.navigate(Screen.Food.route) },
-            modifier = Modifier.weight(1f)
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
-                Icon(Icons.Default.WaterDrop, contentDescription = null)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("Log Water", fontSize = 11.sp)
-            }
+            Text(
+                text = if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
@@ -373,80 +465,6 @@ fun GrowthScoreCard(score: Double) {
                 },
                 fontWeight = FontWeight.Bold
             )
-        }
-    }
-}
-
-@Composable
-fun HealthOverviewRow(
-    navController: NavController,
-    waterMl: Double,
-    calories: Double
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        HealthCard(
-            title = "Water",
-            value = "${waterMl.toInt()} ml",
-            subtitle = "Target: 2000 ml",
-            progress = (waterMl / 2000.0).coerceIn(0.0, 1.0).toFloat(),
-            onClick = { navController.navigate(Screen.Food.route) },
-            modifier = Modifier.weight(1f)
-        )
-        HealthCard(
-            title = "Calories",
-            value = "${calories.toInt()} kcal",
-            subtitle = if (calories > 0) "Logged" else "No meals",
-            progress = (calories / 2000.0).coerceIn(0.0, 1.0).toFloat(),
-            onClick = { navController.navigate(Screen.Food.route) },
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-fun HealthCard(
-    title: String,
-    value: String,
-    subtitle: String,
-    progress: Float = 0f,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.animateContentSize()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (progress > 0f) {
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                )
-            }
         }
     }
 }
@@ -506,27 +524,4 @@ fun formatDuration(seconds: Long): String {
     val hours = seconds / 3600
     val minutes = (seconds % 3600) / 60
     return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
-}
-
-@Composable
-fun MedicalDisclaimerCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-        )
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = "Medical Disclaimer",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.error
-            )
-            Text(
-                text = "DailyTrack provides educational insights only. It is not medical advice. If you have persistent symptoms, please consult a healthcare professional.",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
 }

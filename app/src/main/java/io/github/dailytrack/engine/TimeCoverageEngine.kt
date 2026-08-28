@@ -1,5 +1,6 @@
 package io.github.dailytrack.engine
 
+import io.github.dailytrack.data.db.entity.CategoryEntity
 import io.github.dailytrack.data.db.entity.SessionEntity
 import java.time.LocalDate
 import java.time.ZoneId
@@ -26,17 +27,12 @@ data class TimeCoverage(
             val awakeSeconds = totalDaySeconds - sleepSeconds
             return if (awakeSeconds > 0) productiveSeconds.toDouble() / awakeSeconds else 0.0
         }
-
-    val wastedRatio: Double
-        get() {
-            val awakeSeconds = totalDaySeconds - sleepSeconds
-            return if (awakeSeconds > 0) wastedSeconds.toDouble() / awakeSeconds else 0.0
-        }
 }
 
 class TimeCoverageEngine {
     fun calculateCoverage(
         sessions: List<SessionEntity>,
+        categories: Map<Long, CategoryEntity>,
         date: LocalDate,
         zone: ZoneId,
         dayStartHour: Int = 0
@@ -61,12 +57,19 @@ class TimeCoverageEngine {
             if (sessionEnd > sessionStart) {
                 val duration = (sessionEnd - sessionStart) / 1000
                 trackedSeconds += duration
-                when (session.type) {
+
+                val category = session.categoryId?.let { categories[it] }
+                val categoryType = category?.type ?: session.type
+
+                when (categoryType) {
                     "SLEEP" -> sleepSeconds += duration
                     "EXERCISE" -> exerciseSeconds += duration
                     "LEARNING" -> learningSeconds += duration
                     "SOCIAL" -> socialSeconds += duration
-                    "REST" -> recoverySeconds += duration
+                    "RECOVERY" -> recoverySeconds += duration
+                    "PRODUCTIVE" -> productiveSeconds += duration
+                    "WASTED" -> wastedSeconds += duration
+                    "NEUTRAL" -> neutralSeconds += duration
                     else -> neutralSeconds += duration
                 }
             }

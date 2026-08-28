@@ -48,6 +48,35 @@
                 android:resource="@xml/widget_timer_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.QuoteWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="io.github.dailytrack.ACTION_QUOTE_WIDGET_NEXT" />
+                <action android:name="io.github.dailytrack.ACTION_QUOTE_WIDGET_SAVE" />
+                <action android:name="io.github.dailytrack.ACTION_QUOTE_WIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quote_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.PomodoroWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="io.github.dailytrack.ACTION_POM_WIDGET_START" />
+                <action android:name="io.github.dailytrack.ACTION_POM_WIDGET_STOP" />
+                <action android:name="io.github.dailytrack.ACTION_POM_WIDGET_RESET" />
+                <action android:name="io.github.dailytrack.ACTION_POM_WIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_pomodoro_info" />
+        </receiver>
+
     </application>
 
 </manifest>

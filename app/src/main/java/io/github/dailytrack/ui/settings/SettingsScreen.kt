@@ -53,6 +53,7 @@ fun SettingsScreen(navController: NavController) {
     var apiQuotesEnabled by remember { mutableStateOf(QuotesApi.isApiEnabled()) }
     var wasteModeEnabled by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -271,7 +272,7 @@ fun SettingsScreen(navController: NavController) {
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     ActionButton("View Licenses", Icons.Default.Description) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kusal630/TIme-tracker/blob/main/LICENSE"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kusal630/TIme-tracker/blob/master/LICENSE"))
                         context.startActivity(intent)
                     }
                     ActionButton("GitHub Repository", Icons.Default.Code) {
@@ -279,11 +280,60 @@ fun SettingsScreen(navController: NavController) {
                         context.startActivity(intent)
                     }
                     ActionButton("Delete All Data", Icons.Default.Delete, isDestructive = true) {
-                        Toast.makeText(context, "Coming soon", Toast.LENGTH_SHORT).show()
+                        showDeleteAllDialog = true
                     }
                 }
             }
         }
+    }
+
+    if (showDeleteAllDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAllDialog = false },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete All Data?") },
+            text = {
+                Column {
+                    Text("This will permanently delete:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    listOf("All sessions and timer data", "All pomodoro records", "All todos and subtasks", "All insights", "All saved quotes", "App settings (reset to defaults)").forEach { item ->
+                        Text("  - $item", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "This action cannot be undone!",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val app = context.applicationContext as SoulTrackApp
+                        val db = app.database
+                        scope.launch {
+                            db.todoDao().deleteAll()
+                            db.subtaskDao().deleteAll()
+                            db.sessionDao().deleteAll()
+                            db.pomodoroSessionDao().deleteAll()
+                            db.insightDao().deleteAll()
+                            db.savedQuoteDao().deleteAll()
+                            context.getSharedPreferences("widget_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit().clear().apply()
+                            showDeleteAllDialog = false
+                            Toast.makeText(context, "All data deleted", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Delete Everything") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAllDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 

@@ -61,4 +61,7 @@ interface SessionDao {
 
     @Query("SELECT * FROM sessions WHERE categoryId = :categoryId AND startTime >= :start AND startTime < :end ORDER BY startTime")
     fun getSessionsByCategoryForDay(categoryId: Long, start: Long, end: Long): Flow<List<SessionEntity>>
+
+    @Query("DELETE FROM sessions")
+    suspend fun deleteAll()
 }

@@ -23,6 +23,8 @@ import kotlin.math.sqrt
 class RoutineLoopEngine {
     private val similarityThreshold = 0.75
     private val minDaysForLoop = 3
+    private val comfortZoneSimilarity = 0.65
+    private val comfortZoneNovelty = 20.0
 
     fun calculateDailyRoutineVector(
         sessions: List<SessionEntity>,
@@ -56,6 +58,64 @@ class RoutineLoopEngine {
         return if (denominator == 0.0) 0.0 else dotProduct / denominator
     }
 
+    fun calculateCategoryDiversity(categoryDurations: Map<Long, Long>): Double {
+        if (categoryDurations.isEmpty()) return 0.0
+        val totalDuration = categoryDurations.values.sum().toDouble()
+        if (totalDuration == 0.0) return 0.0
+
+        val proportions = categoryDurations.values.map { it.toDouble() / totalDuration }
+        val entropy = -proportions.sumOf { p ->
+            if (p > 0) p * kotlin.math.ln(p) / kotlin.math.ln(categoryDurations.size.toDouble()) else 0.0
+        }
+        return entropy * 100.0
+    }
+
+    fun calculateNoveltyScore(
+        currentCategories: Set<Long>,
+        recentCategories: List<Set<Long>>,
+        currentDuration: Long
+    ): Double {
+        if (currentDuration == 0L) return 0.0
+
+        var novelty = 0.0
+
+        val activityLevel = when {
+            currentDuration > 28800000L -> 30.0
+            currentDuration > 14400000L -> 40.0
+            currentDuration > 7200000L -> 50.0
+            currentDuration > 3600000L -> 60.0
+            currentDuration > 1800000L -> 70.0
+            else -> 80.0
+        }
+        novelty += activityLevel
+
+        if (recentCategories.isNotEmpty()) {
+            val allRecentCategories = recentCategories.flatten().toSet()
+            val newCategories = currentCategories - allRecentCategories
+            val categoryNovelty = when {
+                newCategories.size >= 3 -> 30.0
+                newCategories.size == 2 -> 20.0
+                newCategories.size == 1 -> 10.0
+                else -> 0.0
+            }
+            novelty += categoryNovelty
+
+            val recentSizeHistory = recentCategories.map { it.size }
+            val avgRecentSize = if (recentSizeHistory.isNotEmpty()) recentSizeHistory.average() else 0.0
+            val sizeVariety = when {
+                currentCategories.size > avgRecentSize + 2 -> 20.0
+                currentCategories.size > avgRecentSize + 1 -> 15.0
+                currentCategories.size > avgRecentSize -> 10.0
+                else -> 0.0
+            }
+            novelty += sizeVariety
+        } else {
+            novelty += 30.0
+        }
+
+        return novelty.coerceIn(0.0, 100.0)
+    }
+
     fun detectLoop(
         dailyVectors: List<Map<String, Double>>,
         growthScores: List<Double>,
@@ -72,6 +132,8 @@ class RoutineLoopEngine {
         }
 
         var consecutiveSimilarDays = 0
+        var maxConsecutiveSimilar = 0
+        var currentConsecutive = 0
         var maxSimilarity = 0.0
         var totalSimilarity = 0.0
         var comparisonCount = 0
@@ -81,7 +143,7 @@ class RoutineLoopEngine {
             val vec2 = dailyVectors[i]
 
             if (vec1.isEmpty() || vec2.isEmpty()) {
-                consecutiveSimilarDays = 0
+                currentConsecutive = 0
                 continue
             }
 
@@ -91,22 +153,32 @@ class RoutineLoopEngine {
             comparisonCount++
 
             if (similarity >= similarityThreshold) {
-                consecutiveSimilarDays++
+                currentConsecutive++
+                maxConsecutiveSimilar = maxOf(maxConsecutiveSimilar, currentConsecutive)
             } else {
-                consecutiveSimilarDays = 0
+                currentConsecutive = 0
             }
         }
 
+        consecutiveSimilarDays = maxConsecutiveSimilar
         val avgSimilarity = if (comparisonCount > 0) totalSimilarity / comparisonCount else 0.0
+
         val recentGrowthAvg = if (growthScores.isNotEmpty())
             growthScores.takeLast(daysThreshold).average() else 0.0
         val recentNoveltyAvg = if (noveltyScores.isNotEmpty())
             noveltyScores.takeLast(daysThreshold).average() else 0.0
 
+        val growthDeclining = if (growthScores.size >= daysThreshold) {
+            val recent = growthScores.takeLast(daysThreshold).average()
+            val older = growthScores.dropLast(daysThreshold).takeLast(daysThreshold).average()
+            recent < older * 0.9
+        } else false
+
         val isLoopDetected = consecutiveSimilarDays >= daysThreshold &&
                 avgSimilarity >= similarityThreshold
 
-        val comfortZoneWarning = avgSimilarity >= 0.65 && recentNoveltyAvg < 20.0
+        val comfortZoneWarning = (avgSimilarity >= comfortZoneSimilarity && recentNoveltyAvg < comfortZoneNovelty) ||
+                (consecutiveSimilarDays >= 2 && avgSimilarity >= 0.80 && growthDeclining)
 
         return LoopDetectionResult(
             isLoopDetected = isLoopDetected,

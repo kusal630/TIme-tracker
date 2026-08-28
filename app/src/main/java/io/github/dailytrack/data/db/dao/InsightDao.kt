@@ -49,4 +49,7 @@ interface InsightDao {
 
     @Query("DELETE FROM insights WHERE dismissed = 1")
     suspend fun deleteDismissed()
+
+    @Query("DELETE FROM insights")
+    suspend fun deleteAll()
 }

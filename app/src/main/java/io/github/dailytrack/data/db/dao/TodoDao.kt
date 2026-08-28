@@ -94,4 +94,7 @@ interface TodoDao {
 
     @Query("SELECT COUNT(*) FROM todos WHERE isCompleted = 1 AND categoryId = :categoryId")
     suspend fun getCompletedCountByCategory(categoryId: Long): Int
+
+    @Query("DELETE FROM todos")
+    suspend fun deleteAll()
 }

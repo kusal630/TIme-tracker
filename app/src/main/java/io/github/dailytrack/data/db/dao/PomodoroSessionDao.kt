@@ -61,4 +61,7 @@ interface PomodoroSessionDao {
 
     @Query("SELECT COUNT(*) FROM pomodoro_sessions WHERE type = 'WORK' AND isCompleted = 1 AND startTime >= :start AND startTime < :end")
     suspend fun getCompletedPomodoroCountInRange(start: Long, end: Long): Int
+
+    @Query("DELETE FROM pomodoro_sessions")
+    suspend fun deleteAll()
 }

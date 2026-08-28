@@ -461,6 +461,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val dailyVectors = mutableListOf<Map<String, Double>>()
         val growthScores = mutableListOf<Double>()
         val noveltyScores = mutableListOf<Double>()
+        val recentCategorySets = mutableListOf<Set<Long>>()
 
         for (i in 6 downTo 0) {
             val date = today.minusDays(i.toLong())
@@ -469,32 +470,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val pomodoros = pomodoroRepo.getPomodorosForDaySync(dayStart, dayEnd)
 
             val categoryDurations = mutableMapOf<Long, Long>()
+            val dayCategories = mutableSetOf<Long>()
             for (session in sessions) {
                 val catId = session.categoryId ?: continue
                 val duration = (session.endTime ?: dayEnd) - session.startTime
                 categoryDurations[catId] = (categoryDurations[catId] ?: 0L) + duration
+                dayCategories.add(catId)
             }
 
             for (pomodoro in pomodoros) {
                 if (pomodoro.isCompleted && pomodoro.categoryId != null) {
                     val duration = pomodoro.durationMinutes * 60000L
                     categoryDurations[pomodoro.categoryId] = (categoryDurations[pomodoro.categoryId] ?: 0L) + duration
+                    dayCategories.add(pomodoro.categoryId)
                 }
             }
 
             val vector = routineEngine.calculateDailyRoutineVector(sessions, categoryDurations)
             dailyVectors.add(vector)
 
-            val activeSessionCount = sessions.count { !it.isActive }
-            val completedPomodoroCount = pomodoros.count { it.isCompleted }
-            val dayNovelty = when {
-                activeSessionCount + completedPomodoroCount > 5 -> 80.0
-                activeSessionCount + completedPomodoroCount > 3 -> 60.0
-                activeSessionCount + completedPomodoroCount > 1 -> 40.0
-                activeSessionCount + completedPomodoroCount > 0 -> 20.0
-                else -> 0.0
-            }
+            val totalDuration = categoryDurations.values.sum()
+            val dayNovelty = routineEngine.calculateNoveltyScore(
+                currentCategories = dayCategories,
+                recentCategories = recentCategorySets.toList(),
+                currentDuration = totalDuration
+            )
             noveltyScores.add(dayNovelty)
+            recentCategorySets.add(dayCategories)
             growthScores.add(_growthScore.value)
         }
 

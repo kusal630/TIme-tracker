@@ -42,6 +42,8 @@
                 <action android:name="io.github.dailytrack.ACTION_WIDGET_STOP" />
                 <action android:name="io.github.dailytrack.ACTION_WIDGET_RESET" />
                 <action android:name="io.github.dailytrack.ACTION_WIDGET_UPDATE" />
+                <action android:name="io.github.dailytrack.ACTION_CYCLE_CATEGORY" />
+                <action android:name="io.github.dailytrack.ACTION_NEXT_QUOTE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

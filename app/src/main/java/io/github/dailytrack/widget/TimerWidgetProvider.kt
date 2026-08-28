@@ -252,7 +252,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
             action = ACTION_CYCLE_CATEGORY
         }
         val categoryPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 4, categoryClickIntent,
+            context, 10, categoryClickIntent,
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_category, categoryPendingIntent)
@@ -261,7 +261,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
             action = ACTION_NEXT_QUOTE
         }
         val quotePendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 5, quoteClickIntent,
+            context, 11, quoteClickIntent,
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_quote, quotePendingIntent)
@@ -270,7 +270,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
             action = ACTION_START
         }
         val startPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 0, startIntent,
+            context, 12, startIntent,
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_btn_start, startPendingIntent)
@@ -279,7 +279,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
             action = ACTION_STOP
         }
         val stopPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 1, stopIntent,
+            context, 13, stopIntent,
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_btn_stop, stopPendingIntent)
@@ -288,10 +288,19 @@ class TimerWidgetProvider : AppWidgetProvider() {
             action = ACTION_RESET
         }
         val resetPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 2, resetIntent,
+            context, 14, resetIntent,
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_btn_reset, resetPendingIntent)
+
+        val rootClickIntent = Intent(context, TimerWidgetProvider::class.java).apply {
+            action = ACTION_UPDATE
+        }
+        val rootPendingIntent = android.app.PendingIntent.getBroadcast(
+            context, 20, rootClickIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_root, rootPendingIntent)
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }

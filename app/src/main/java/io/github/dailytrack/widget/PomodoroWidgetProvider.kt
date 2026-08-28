@@ -203,6 +203,15 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
         )
         views.setOnClickPendingIntent(R.id.widget_pom_btn_reset, resetPendingIntent)
 
+        val rootClickIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
+            action = ACTION_UPDATE
+        }
+        val rootPendingIntent = android.app.PendingIntent.getBroadcast(
+            context, 20, rootClickIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_pom_root, rootPendingIntent)
+
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 }

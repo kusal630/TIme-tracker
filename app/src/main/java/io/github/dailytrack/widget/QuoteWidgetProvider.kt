@@ -177,6 +177,15 @@ class QuoteWidgetProvider : AppWidgetProvider() {
         )
         views.setOnClickPendingIntent(R.id.widget_btn_save, savePendingIntent)
 
+        val rootClickIntent = Intent(context, QuoteWidgetProvider::class.java).apply {
+            action = ACTION_UPDATE
+        }
+        val rootPendingIntent = android.app.PendingIntent.getBroadcast(
+            context, 20, rootClickIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_quote_root, rootPendingIntent)
+
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 }

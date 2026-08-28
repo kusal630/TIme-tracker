@@ -18,13 +18,28 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import io.github.dailytrack.data.api.QuotesApi
 import io.github.dailytrack.service.PomodoroForegroundService
 import io.github.dailytrack.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
+
+private val quoteColors = listOf(
+    Color(0xFFE94560),
+    Color(0xFF0F3460),
+    Color(0xFF533483),
+    Color(0xFF2E7D32),
+    Color(0xFFF57C00),
+    Color(0xFF00838F),
+    Color(0xFF6A1B9A),
+    Color(0xFFC62828),
+    Color(0xFF1565C0),
+    Color(0xFF4E342E)
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,8 +61,21 @@ fun PomodoroScreen(
     var selectedCategoryId by remember { mutableLongStateOf(0L) }
     var showFlash by remember { mutableStateOf(false) }
     var flashColor by remember { mutableStateOf(Color(0xFFE94560)) }
+    
+    var currentQuote by remember { mutableStateOf("Loading inspiring quote...") }
+    var quoteAuthor by remember { mutableStateOf("") }
+    var quoteColor by remember { mutableStateOf(quoteColors[0]) }
+    var quoteIndex by remember { mutableIntStateOf(0) }
 
     val isRunning = activePomodoro != null
+
+    LaunchedEffect(Unit) {
+        val quote = QuotesApi.getRandomQuote()
+        currentQuote = quote.text
+        quoteAuthor = quote.author
+        quoteColor = quoteColors[quoteIndex % quoteColors.size]
+        quoteIndex++
+    }
 
     LaunchedEffect(activePomodoro) {
         if (activePomodoro != null) {
@@ -62,6 +90,12 @@ fun PomodoroScreen(
                     flashColor = if (isBreak) Color(0xFFE94560) else Color(0xFFFFAB40)
                     delay(1000)
                     showFlash = false
+                    
+                    val quote = QuotesApi.getRandomQuote()
+                    currentQuote = quote.text
+                    quoteAuthor = quote.author
+                    quoteColor = quoteColors[quoteIndex % quoteColors.size]
+                    quoteIndex++
                     
                     if (isBreak) {
                         viewModel.startPomodoro(
@@ -98,6 +132,12 @@ fun PomodoroScreen(
 
     val completedPomodorosToday = todayPomodoros.count { it.type == "WORK" && it.isCompleted }
     val completedBreaksToday = todayPomodoros.count { it.type == "BREAK" && it.isCompleted }
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 500, easing = LinearEasing),
+        label = "progress"
+    )
 
     Box(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -169,7 +209,7 @@ fun PomodoroScreen(
                             
                             Box(contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(
-                                    progress = { progress },
+                                    progress = { animatedProgress },
                                     modifier = Modifier.size(180.dp),
                                     strokeWidth = 12.dp,
                                     color = if (isBreak) Color(0xFFFFAB40) else Color(0xFFE94560),
@@ -194,6 +234,52 @@ fun PomodoroScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+                }
+
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = quoteColor.copy(alpha = 0.1f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "\"",
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = quoteColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                            AnimatedContent(
+                                targetState = currentQuote,
+                                transitionSpec = {
+                                    fadeIn() + slideInVertically() togetherWith fadeOut() + slideOutVertically()
+                                },
+                                label = "quote_animation"
+                            ) { quote ->
+                                Text(
+                                    text = quote,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = quoteColor,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            if (quoteAuthor.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "— $quoteAuthor",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = quoteColor.copy(alpha = 0.7f)
+                                )
+                            }
                         }
                     }
                 }
@@ -292,7 +378,7 @@ fun PomodoroScreen(
                         Button(
                             onClick = {
                                 showFlash = true
-                                flashColor = Color(0xFFE94560)
+                                flashColor = quoteColor
                                 
                                 val todoTitle = activeTodos.find { it.id == selectedTodoId }?.title ?: ""
                                 val intent = Intent(context, PomodoroForegroundService::class.java).apply {
@@ -315,7 +401,7 @@ fun PomodoroScreen(
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFE94560)
+                                containerColor = quoteColor
                             )
                         ) {
                             Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp))

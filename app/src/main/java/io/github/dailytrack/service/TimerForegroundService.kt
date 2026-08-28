@@ -40,6 +40,7 @@ class TimerForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 timerJob?.cancel()
+                notificationManager?.cancel(NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -125,6 +126,7 @@ class TimerForegroundService : Service() {
 
     override fun onDestroy() {
         timerJob?.cancel()
+        notificationManager?.cancel(NOTIFICATION_ID)
         scope.cancel()
         super.onDestroy()
     }

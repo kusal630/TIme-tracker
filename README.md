@@ -73,3 +73,9 @@ Apache License 2.0
 ## Third-Party Notices
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency licenses.
+
+## ☕ Support the Developer
+
+If Soul Track helps you, consider buying me a coffee!
+
+<a href="https://buymeacoffee.com/kusal630" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 50px !important; width: 180px !important;"></a>

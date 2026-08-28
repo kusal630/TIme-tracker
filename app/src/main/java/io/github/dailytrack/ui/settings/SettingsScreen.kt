@@ -28,9 +28,6 @@ fun SettingsScreen(navController: NavController) {
     var learningMinutes by remember { mutableStateOf("30") }
     var exerciseMinutes by remember { mutableStateOf("30") }
     var sleepTarget by remember { mutableStateOf("8") }
-
-    var enableNutrition by remember { mutableStateOf(true) }
-    var enableExercise by remember { mutableStateOf(true) }
     var maintenanceMode by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -39,7 +36,7 @@ fun SettingsScreen(navController: NavController) {
         uri?.let {
             try {
                 context.contentResolver.openOutputStream(it)?.use { outputStream ->
-                    val exportData = """{"app":"DailyTrack","version":"0.1.0","exportDate":"${java.time.Instant.now()}"}"""
+                    val exportData = """{"app":"SoulTrack","version":"0.1.0","exportDate":"${java.time.Instant.now()}"}"""
                     outputStream.write(exportData.toByteArray())
                 }
                 Toast.makeText(context, "Data exported successfully", Toast.LENGTH_SHORT).show()
@@ -97,19 +94,6 @@ fun SettingsScreen(navController: NavController) {
             }
 
             item {
-                SettingsSection(title = "Modules", icon = Icons.Default.Extension) {
-                    Text(
-                        "Enable or disable tracking modules",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ModuleSwitch("Food & Nutrition", Icons.Default.Restaurant, enableNutrition) { enableNutrition = it }
-                    ModuleSwitch("Exercise & Movement", Icons.Default.FitnessCenter, enableExercise) { enableExercise = it }
-                }
-            }
-
-            item {
                 SettingsSection(title = "Privacy", icon = Icons.Default.Shield) {
                     PrivacySwitch("Maintenance mode", Icons.Default.Pause, maintenanceMode) { maintenanceMode = it }
                 }
@@ -118,7 +102,7 @@ fun SettingsScreen(navController: NavController) {
             item {
                 SettingsSection(title = "Data", icon = Icons.Default.Storage) {
                     ActionButton("Export Data", Icons.Default.FileDownload) {
-                        exportLauncher.launch("dailytrack_export.json")
+                        exportLauncher.launch("soultrack_export.json")
                     }
                     ActionButton("Import Data", Icons.Default.FileUpload) {
                         importLauncher.launch(arrayOf("application/json"))
@@ -129,7 +113,6 @@ fun SettingsScreen(navController: NavController) {
             item {
                 SettingsSection(title = "Notifications", icon = Icons.Default.Notifications) {
                     NotificationSwitch("Timer notification", true)
-                    NotificationSwitch("Water reminder", false)
                     NotificationSwitch("Learning reminder", false)
                     NotificationSwitch("Sleep wind-down", false)
                     NotificationSwitch("Insight notifications", false)
@@ -144,7 +127,7 @@ fun SettingsScreen(navController: NavController) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("DailyTrack", fontWeight = FontWeight.Medium)
+                            Text("Soul Track", fontWeight = FontWeight.Medium)
                             Text(
                                 "v0.1.0",
                                 style = MaterialTheme.typography.bodySmall,
@@ -159,15 +142,14 @@ fun SettingsScreen(navController: NavController) {
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     ActionButton("View Licenses", Icons.Default.Description) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/dailytrack/dailytrack/blob/main/LICENSE"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/soultrack/soultrack/blob/main/LICENSE"))
                         context.startActivity(intent)
                     }
                     ActionButton("GitHub Repository", Icons.Default.Code) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/dailytrack/dailytrack"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/soultrack/soultrack"))
                         context.startActivity(intent)
                     }
                     ActionButton("Delete All Data", Icons.Default.Delete, isDestructive = true) {
-                        // TODO: Implement data deletion with confirmation dialog
                         Toast.makeText(context, "Coming soon", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -220,30 +202,6 @@ fun TargetInput(label: String, value: String, onValueChange: (String) -> Unit) {
             .padding(vertical = 4.dp),
         singleLine = true
     )
-}
-
-@Composable
-fun ModuleSwitch(label: String, icon: ImageVector, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            label,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
 }
 
 @Composable

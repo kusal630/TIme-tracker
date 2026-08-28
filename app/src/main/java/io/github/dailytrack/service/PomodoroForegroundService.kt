@@ -192,6 +192,7 @@ class PomodoroForegroundService : Service() {
             .setUsesChronometer(false)
             .setShowWhen(false)
             .setColor(notificationColor)
+            .setColorized(true)
             .addAction(android.R.drawable.ic_media_pause, if (isBreak) "Skip Break" else "Complete", completeIntent)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -245,6 +246,8 @@ class PomodoroForegroundService : Service() {
             ).apply {
                 description = "Shows active focus session timer"
                 setShowBadge(false)
+                lightColor = 0xFFE94560.toInt()
+                enableLights(true)
             }
 
             val breakChannel = NotificationChannel(
@@ -254,6 +257,8 @@ class PomodoroForegroundService : Service() {
             ).apply {
                 description = "Shows active break timer"
                 setShowBadge(false)
+                lightColor = 0xFFFFAB40.toInt()
+                enableLights(true)
             }
 
             val notificationManager = getSystemService(NotificationManager::class.java)

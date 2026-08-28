@@ -57,6 +57,7 @@ fun PomodoroScreen(
     val todayPomodoros by viewModel.todayPomodoros.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val activeTodos by viewModel.activeTodos.collectAsState()
+    val savedQuotes by viewModel.savedQuotes.collectAsState()
     
     var isBreak by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableLongStateOf(0L) }
@@ -358,11 +359,13 @@ fun PomodoroScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End
                             ) {
-                                val isSaved = viewModel.isQuoteSaved(currentQuote)
+                                val isSaved by remember(currentQuote, savedQuotes) {
+                                    derivedStateOf { savedQuotes.any { it.text == currentQuote } }
+                                }
                                 IconButton(
                                     onClick = {
                                         if (isSaved) {
-                                            val savedQuote = viewModel.savedQuotes.value.find { it.text == currentQuote }
+                                            val savedQuote = savedQuotes.find { it.text == currentQuote }
                                             savedQuote?.let { viewModel.deleteSavedQuote(it) }
                                         } else {
                                             viewModel.saveQuote(currentQuote, quoteAuthor)

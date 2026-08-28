@@ -1,0 +1,43 @@
+name: Soul Track
+com.name: io.github.dailytrack
+summary: Offline-first life tracking with timer, pomodoro, todos, and growth insights.
+description: |
+  Soul Track is a privacy-first life tracking app that runs entirely
+  on your device. No internet required, no accounts needed, no data
+  leaves your phone.
+
+  Features:
+  - Time tracking with category-based sessions
+  - Pomodoro timer with customizable work/break durations
+  - Todo list with priorities, deadlines, and subtasks
+  - Growth score calculation across learning, productivity, exercise,
+    sleep, social, novelty, and consistency
+  - Insights with charts and trend analysis
+  - Home screen widgets for quick access
+  - Local Syncthing sync between devices (optional)
+  - Dark theme with customizable colors
+
+  All data stays on your device. Sync is optional and uses Syncthing
+  for encrypted local network transfer.
+license: Apache-2.0
+web: https://github.com/kusal630/TIme-tracker
+sourceCode: https://github.com/kusal630/TIme-tracker
+issueTracker: https://github.com/kusal630/TIme-tracker/issues
+changelog: |
+  v1.0.0 (2024-01-01)
+  - Initial F-Droid release
+  - Time tracking with categories
+  - Pomodoro timer
+  - Todo management with priorities
+  - Growth score calculation
+  - Home screen widgets
+  - Local device sync via Syncthing
+
+categories:
+  - Productivity
+  - Time Tracking
+  - Lifestyle
+antiFeatures:
+  - Ads
+  - Tracking
+  - NonFreeNetwork

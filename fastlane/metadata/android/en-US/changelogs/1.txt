@@ -1,0 +1,7 @@
+* Initial F-Droid release
+* Time tracking with categories
+* Pomodoro timer
+* Todo management with priorities
+* Growth score calculation
+* Home screen widgets
+* Local device sync via Syncthing

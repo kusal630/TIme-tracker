@@ -1,8 +1,46 @@
-appId: io.github.dailytrack
-appName: DailyTrack
-license: Apache-2.0
-categories:
+Categories:
+  - Productivity
+  - Time Tracking
   - Lifestyle
-  - Health & Fitness
-description: |
-  Offline-first, privacy-first life tracking app. Track your time, food, sleep, exercise, mood, and growth. All data stays on your device. No cloud, no ads, no tracking. Educational health indicators with safe, non-diagnostic language.
+License: Apache-2.0
+Web: https://github.com/kusal630/TIme-tracker
+SourceCode: https://github.com/kusal630/TIme-tracker
+IssueTracker: https://github.com/kusal630/TIme-tracker/issues
+Changelog: https://github.com/kusal630/TIme-tracker/releases
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1
+
+Name: Soul Track
+Summary: Offline-first life tracking with timer, pomodoro, todos, and growth insights
+Description: |
+  Soul Track is a privacy-first life tracking application that runs entirely
+  on your device. No internet permission, no accounts, no data leaves your phone.
+
+  Core features include time tracking with category-based sessions, a pomodoro
+  timer with customizable work and break durations, a todo list with priorities,
+  deadlines, and subtasks, and a growth score system that calculates progress
+  across learning, productivity, exercise, sleep, social interaction, novelty,
+  and consistency.
+
+  Additional features include insights with charts and trend analysis, home
+  screen widgets for quick access, optional local device sync via Syncthing,
+  and a dark theme with customizable colors.
+
+  All data is stored locally using SQLite. The optional sync feature uses
+  Syncthing for encrypted local network transfer between your own devices.
+  No cloud services, no analytics, no tracking.
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    commit: v0.1.0
+    subdir: app
+    gradle:
+      - yes
+
+AllowedAPKSigningKeys: []
+AntiFeatures:
+  - Ads
+  - Tracking

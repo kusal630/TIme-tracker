@@ -14,16 +14,39 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "APP_NAME", "\"Soul Track\"")
+        buildConfigField("String", "VERSION_NAME", "\"$versionName\"")
+        buildConfigField("int", "VERSION_CODE", "$versionCode")
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("KEYSTORE_PATH") ?: ""
+            val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+            val keyAliasVal = System.getenv("KEY_ALIAS") ?: ""
+            val keyPasswordVal = System.getenv("KEY_PASSWORD") ?: ""
+
+            if (keystorePath.isNotEmpty() && file(keystorePath).exists()) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasVal
+                keyPassword = keyPasswordVal
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            isDebuggable = true
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -31,6 +54,20 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.findByName("release")
+        }
+    }
+
+    flavorDimensions += "store"
+    productFlavors {
+        create("fdroid") {
+            dimension = "store"
+            isDefault = true
+            buildConfigField("String", "STORE_FLAVOR", "\"fdroid\"")
+        }
+        create("play") {
+            dimension = "store"
+            buildConfigField("String", "STORE_FLAVOR", "\"play\"")
         }
     }
 
@@ -59,6 +96,10 @@ android {
         unitTests {
             isIncludeAndroidResources = true
         }
+    }
+
+    androidResources {
+        generateLocaleConfig = true
     }
 }
 

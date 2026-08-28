@@ -17,6 +17,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionRepo = SessionRepository(db.sessionDao())
     private val categoryRepo = CategoryRepository(db.categoryDao())
     private val insightRepo = InsightRepository(db.insightDao())
+    private val todoRepo = TodoRepository(db.todoDao())
+    private val pomodoroRepo = PomodoroRepository(db.pomodoroSessionDao())
     private val routineEngine = RoutineLoopEngine()
 
     private val timeEngine = TimeCoverageEngine()
@@ -50,6 +52,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _loopStatus = MutableStateFlow<LoopDetectionResult?>(null)
     val loopStatus: StateFlow<LoopDetectionResult?> = _loopStatus
 
+    private val _activeTodos = MutableStateFlow<List<TodoEntity>>(emptyList())
+    val activeTodos: StateFlow<List<TodoEntity>> = _activeTodos
+
+    private val _completedTodos = MutableStateFlow<List<TodoEntity>>(emptyList())
+    val completedTodos: StateFlow<List<TodoEntity>> = _completedTodos
+
+    private val _activeTodoCount = MutableStateFlow(0)
+    val activeTodoCount: StateFlow<Int> = _activeTodoCount
+
+    private val _completedTodoCount = MutableStateFlow(0)
+    val completedTodoCount: StateFlow<Int> = _completedTodoCount
+
+    private val _todayPomodoros = MutableStateFlow<List<PomodoroSessionEntity>>(emptyList())
+    val todayPomodoros: StateFlow<List<PomodoroSessionEntity>> = _todayPomodoros
+
+    private val _activePomodoro = MutableStateFlow<PomodoroSessionEntity?>(null)
+    val activePomodoro: StateFlow<PomodoroSessionEntity?> = _activePomodoro
+
+    private val _weeklyStats = MutableStateFlow(WeeklyStats())
+    val weeklyStats: StateFlow<WeeklyStats> = _weeklyStats
+
     init {
         viewModelScope.launch {
             categoryRepo.initializeDefaults()
@@ -64,6 +87,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             sessionRepo.getActiveSession().collect { session ->
                 _activeSession.value = session
+            }
+        }
+
+        viewModelScope.launch {
+            todoRepo.getActiveTodos().collect { todos ->
+                _activeTodos.value = todos
+            }
+        }
+
+        viewModelScope.launch {
+            todoRepo.getCompletedTodos().collect { todos ->
+                _completedTodos.value = todos
+            }
+        }
+
+        viewModelScope.launch {
+            todoRepo.getActiveTodoCount().collect { count ->
+                _activeTodoCount.value = count
+            }
+        }
+
+        viewModelScope.launch {
+            todoRepo.getCompletedTodoCount().collect { count ->
+                _completedTodoCount.value = count
             }
         }
 
@@ -84,12 +131,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
+            pomodoroRepo.getPomodorosForDay(dayStart, dayEnd).collect { pomodoros ->
+                _todayPomodoros.value = pomodoros
+            }
+        }
+
+        viewModelScope.launch {
             calculateGrowthScore()
             detectLoop()
         }
 
         viewModelScope.launch {
             generateInsights()
+        }
+
+        viewModelScope.launch {
+            calculateWeeklyStats()
         }
     }
 
@@ -114,7 +171,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val session = SessionEntity(
-                title = title.ifBlank { "Active Session" },
+                title = title.ifBlank { category?.name ?: "Active Session" },
                 categoryId = if (categoryId == 0L) null else categoryId,
                 type = sessionType,
                 startTime = now,
@@ -139,6 +196,81 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addTodo(title: String, description: String, categoryId: Long?, deadline: Long?, estimatedMinutes: Int) {
+        viewModelScope.launch {
+            val todo = TodoEntity(
+                title = title,
+                description = description,
+                categoryId = categoryId,
+                deadline = deadline,
+                estimatedMinutes = estimatedMinutes
+            )
+            todoRepo.insert(todo)
+        }
+    }
+
+    fun completeTodo(id: Long) {
+        viewModelScope.launch {
+            todoRepo.completeTodo(id)
+        }
+    }
+
+    fun deleteTodo(todo: TodoEntity) {
+        viewModelScope.launch {
+            todoRepo.delete(todo)
+        }
+    }
+
+    fun updateTodo(todo: TodoEntity) {
+        viewModelScope.launch {
+            todoRepo.update(todo)
+        }
+    }
+
+    fun startPomodoro(todoId: Long?, categoryId: Long?, durationMinutes: Int) {
+        viewModelScope.launch {
+            val pomodoro = PomodoroSessionEntity(
+                todoId = todoId,
+                categoryId = categoryId,
+                startTime = System.currentTimeMillis(),
+                durationMinutes = durationMinutes,
+                type = "WORK"
+            )
+            val id = pomodoroRepo.insert(pomodoro)
+            _activePomodoro.value = pomodoroRepo.getPomodoroById(id)
+        }
+    }
+
+    fun completePomodoro() {
+        viewModelScope.launch {
+            val pomodoro = _activePomodoro.value ?: return@launch
+            pomodoroRepo.completePomodoro(pomodoro.id, System.currentTimeMillis())
+            _activePomodoro.value = null
+
+            if (pomodoro.todoId != null) {
+                val todo = todoRepo.getTodoById(pomodoro.todoId)
+                if (todo != null) {
+                    todoRepo.update(todo.copy(
+                        actualMinutes = todo.actualMinutes + pomodoro.durationMinutes,
+                        pomodoroCount = todo.pomodoroCount + 1,
+                        updatedAt = System.currentTimeMillis()
+                    ))
+                }
+            }
+        }
+    }
+
+    fun startPomodoroBreak(durationMinutes: Int) {
+        viewModelScope.launch {
+            val pomodoro = PomodoroSessionEntity(
+                startTime = System.currentTimeMillis(),
+                durationMinutes = durationMinutes,
+                type = "BREAK"
+            )
+            pomodoroRepo.insert(pomodoro)
+        }
+    }
+
     private suspend fun calculateGrowthScore() {
         val zone = ZoneId.systemDefault()
         val today = _selectedDate.value
@@ -146,6 +278,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val sessions = sessionRepo.getSessionsForDaySync(dayStart, dayEnd)
         val cats = _categories.value
+        val pomodoros = pomodoroRepo.getPomodorosForDaySync(dayStart, dayEnd)
 
         var learningMinutes = 0.0
         var productiveMinutes = 0.0
@@ -169,12 +302,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        for (pomodoro in pomodoros) {
+            if (pomodoro.type == "WORK" && pomodoro.isCompleted) {
+                productiveMinutes += pomodoro.durationMinutes
+            }
+        }
+
+        val todoMinutes = todoRepo.getTotalCompletedMinutesInRange(dayStart, dayEnd)
+        productiveMinutes += todoMinutes
+
         var consecutiveDaysActive = 0
         for (i in 0..6) {
             val date = today.minusDays(i.toLong())
             val (dStart, dEnd) = getDayRange(date, zone)
             val daySessions = sessionRepo.getSessionsForDaySync(dStart, dEnd).filter { !it.isActive }
-            if (daySessions.isNotEmpty()) {
+            val dayPomodoros = pomodoroRepo.getPomodorosForDaySync(dStart, dEnd).filter { it.isCompleted }
+            if (daySessions.isNotEmpty() || dayPomodoros.isNotEmpty()) {
                 consecutiveDaysActive++
             } else {
                 break
@@ -205,7 +348,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun detectLoop() {
         val zone = ZoneId.systemDefault()
         val today = _selectedDate.value
-        val cats = _categories.value
 
         val dailyVectors = mutableListOf<Map<String, Double>>()
         val growthScores = mutableListOf<Double>()
@@ -238,6 +380,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val sessions = sessionRepo.getSessionsForDaySync(dayStart, dayEnd)
         val cats = _categories.value
+        val pomodoros = pomodoroRepo.getPomodorosForDaySync(dayStart, dayEnd)
 
         val hasLearning = sessions.any { session ->
             val catType = session.categoryId?.let { cats[it]?.type }
@@ -249,8 +392,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             catType == "EXERCISE" || session.type == "EXERCISE"
         }
 
-        val totalMinutes = sessions.sumOf { s ->
-            if (s.isActive) 0.0 else ((s.endTime ?: dayEnd) - s.startTime) / 60000.0
+        var totalProductiveMinutes = 0.0
+        var totalWastedMinutes = 0.0
+        var totalBreakMinutes = 0.0
+
+        for (session in sessions) {
+            if (session.isActive) continue
+            val duration = ((session.endTime ?: dayEnd) - session.startTime) / 60000.0
+            val cat = session.categoryId?.let { cats[it] }
+            val catType = cat?.type ?: session.type
+
+            when (catType) {
+                "PRODUCTIVE", "LEARNING", "ACTIVITY" -> totalProductiveMinutes += duration
+                "WASTED" -> totalWastedMinutes += duration
+                "NEUTRAL" -> totalBreakMinutes += duration
+            }
+        }
+
+        for (pomodoro in pomodoros) {
+            if (pomodoro.isCompleted) {
+                when (pomodoro.type) {
+                    "WORK" -> totalProductiveMinutes += pomodoro.durationMinutes
+                    "BREAK" -> totalBreakMinutes += pomodoro.durationMinutes
+                }
+            }
+        }
+
+        val todoMinutes = todoRepo.getTotalCompletedMinutesInRange(dayStart, dayEnd)
+        totalProductiveMinutes += todoMinutes
+
+        val yesterday = today.minusDays(1)
+        val (yesterdayStart, yesterdayEnd) = getDayRange(yesterday, zone)
+        val yesterdaySessions = sessionRepo.getSessionsForDaySync(yesterdayStart, yesterdayEnd)
+        var yesterdayWastedMinutes = 0.0
+        for (session in yesterdaySessions) {
+            if (session.isActive) continue
+            val cat = session.categoryId?.let { cats[it] }
+            val catType = cat?.type ?: session.type
+            if (catType == "WASTED") {
+                yesterdayWastedMinutes += ((session.endTime ?: yesterdayEnd) - session.startTime) / 60000.0
+            }
         }
 
         val loop = _loopStatus.value
@@ -259,8 +440,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val templates = insightEngine.generateInsights(
             hasLearningToday = hasLearning,
             growthScoreTrend = listOf(growthScore),
-            wastedTimeRatio = 0.0,
-            productiveRatio = if (totalMinutes > 0.0) (totalMinutes / 1440.0) else 0.0,
+            wastedTimeRatio = if (totalProductiveMinutes > 0) totalWastedMinutes / totalProductiveMinutes else 0.0,
+            productiveRatio = if (totalProductiveMinutes + totalWastedMinutes > 0) totalProductiveMinutes / (totalProductiveMinutes + totalWastedMinutes) else 0.0,
             sleepDebtHours = 0.0,
             lowHydration = false,
             lowProteinDays = 0,
@@ -280,11 +461,146 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             maintenanceMode = false
         )
 
+        val smartInsights = generateSmartInsights(
+            totalProductiveMinutes = totalProductiveMinutes,
+            totalWastedMinutes = totalWastedMinutes,
+            totalBreakMinutes = totalBreakMinutes,
+            yesterdayWastedMinutes = yesterdayWastedMinutes,
+            activeTodoCount = _activeTodoCount.value,
+            completedTodoCount = _completedTodoCount.value,
+            pomodoroCount = pomodoros.count { it.type == "WORK" && it.isCompleted }
+        )
+
         val now = System.currentTimeMillis()
-        for (template in templates) {
+        for (template in templates + smartInsights) {
             val insight = insightEngine.createInsightEntity(template)
             insightRepo.insertIfNotCoolingDown(insight)
         }
+    }
+
+    private fun generateSmartInsights(
+        totalProductiveMinutes: Double,
+        totalWastedMinutes: Double,
+        totalBreakMinutes: Double,
+        yesterdayWastedMinutes: Double,
+        activeTodoCount: Int,
+        completedTodoCount: Int,
+        pomodoroCount: Int
+    ): List<InsightEngine.InsightTemplate> {
+        val insights = mutableListOf<InsightEngine.InsightTemplate>()
+
+        if (totalWastedMinutes > totalProductiveMinutes && totalProductiveMinutes > 0) {
+            insights.add(InsightEngine.InsightTemplate(
+                title = "Time Waste Alert",
+                message = "You've wasted ${totalWastedMinutes.toInt()} minutes today, which is more than your productive time (${totalProductiveMinutes.toInt()} min). Try to refocus on your goals.",
+                severity = "CRITICAL",
+                category = "PRODUCTIVITY",
+                actionLabel = "Start a productive session"
+            ))
+        }
+
+        if (totalWastedMinutes > yesterdayWastedMinutes && yesterdayWastedMinutes > 0) {
+            insights.add(InsightEngine.InsightTemplate(
+                title = "Increasing Waste Pattern",
+                message = "Today's wasted time (${totalWastedMinutes.toInt()} min) is higher than yesterday (${yesterdayWastedMinutes.toInt()} min). Consider adjusting your routine.",
+                severity = "WARNING",
+                category = "PRODUCTIVITY",
+                actionLabel = "Review your schedule"
+            ))
+        }
+
+        if (activeTodoCount > 5) {
+            insights.add(InsightEngine.InsightTemplate(
+                title = "Too Many Pending Tasks",
+                message = "You have $activeTodoCount pending tasks. Focus on completing a few before adding more.",
+                severity = "CAUTION",
+                category = "TODO",
+                actionLabel = "Complete a task"
+            ))
+        }
+
+        if (completedTodoCount == 0 && activeTodoCount > 0) {
+            insights.add(InsightEngine.InsightTemplate(
+                title = "No Tasks Completed Today",
+                message = "You haven't completed any tasks today. Try to finish at least one task.",
+                severity = "WARNING",
+                category = "TODO",
+                actionLabel = "Complete a task"
+            ))
+        }
+
+        if (pomodoroCount >= 8) {
+            insights.add(InsightEngine.InsightTemplate(
+                title = "Great Focus Today!",
+                message = "You've completed $pomodoroCount pomodoros today. Keep up the excellent work!",
+                severity = "INFO",
+                category = "PRODUCTIVITY",
+                actionLabel = "Continue working"
+            ))
+        } else if (pomodoroCount < 3 && totalProductiveMinutes > 60) {
+            insights.add(InsightEngine.InsightTemplate(
+                title = "Try Pomodoro Technique",
+                message = "Consider using the Pomodoro timer to structure your work. It can help improve focus.",
+                severity = "INFO",
+                category = "PRODUCTIVITY",
+                actionLabel = "Start a pomodoro"
+            ))
+        }
+
+        if (totalBreakMinutes > totalProductiveMinutes && totalProductiveMinutes > 0) {
+            insights.add(InsightEngine.InsightTemplate(
+                title = "Too Much Break Time",
+                message = "You've spent ${totalBreakMinutes.toInt()} minutes on breaks, which is more than your productive time. Try to balance better.",
+                severity = "WARNING",
+                category = "PRODUCTIVITY",
+                actionLabel = "Get back to work"
+            ))
+        }
+
+        return insights
+    }
+
+    private suspend fun calculateWeeklyStats() {
+        val zone = ZoneId.systemDefault()
+        val today = _selectedDate.value
+        val weekStart = today.minusDays(6)
+
+        var totalProductive = 0
+        var totalWasted = 0
+        var totalFree = 0
+        var totalCompletedTodos = 0
+        var totalPendingTodos = 0
+
+        for (i in 0..6) {
+            val date = today.minusDays(i.toLong())
+            val (dayStart, dayEnd) = getDayRange(date, zone)
+            val sessions = sessionRepo.getSessionsForDaySync(dayStart, dayEnd)
+            val cats = _categories.value
+
+            for (session in sessions) {
+                if (session.isActive) continue
+                val duration = ((session.endTime ?: dayEnd) - session.startTime) / 60000
+                val cat = session.categoryId?.let { cats[it] }
+                val catType = cat?.type ?: session.type
+
+                when (catType) {
+                    "PRODUCTIVE", "LEARNING", "ACTIVITY", "EXERCISE" -> totalProductive += duration.toInt()
+                    "WASTED" -> totalWasted += duration.toInt()
+                    "NEUTRAL" -> totalFree += duration.toInt()
+                }
+            }
+
+            totalCompletedTodos += todoRepo.getCompletedCountInRange(dayStart, dayEnd)
+        }
+
+        _weeklyStats.value = WeeklyStats(
+            totalProductiveMinutes = totalProductive,
+            totalWastedMinutes = totalWasted,
+            totalFreeMinutes = totalFree,
+            completedTodos = totalCompletedTodos,
+            activeTodos = _activeTodoCount.value,
+            averageProductivePerDay = totalProductive / 7
+        )
     }
 
     private fun getDayRange(date: LocalDate, zone: ZoneId, dayStartHour: Int = 0): Pair<Long, Long> {
@@ -293,3 +609,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return start to end
     }
 }
+
+data class WeeklyStats(
+    val totalProductiveMinutes: Int = 0,
+    val totalWastedMinutes: Int = 0,
+    val totalFreeMinutes: Int = 0,
+    val completedTodos: Int = 0,
+    val activeTodos: Int = 0,
+    val averageProductivePerDay: Int = 0
+)

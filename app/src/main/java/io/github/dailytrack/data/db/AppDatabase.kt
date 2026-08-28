@@ -22,9 +22,11 @@ import io.github.dailytrack.data.db.entity.*
         JournalEntryEntity::class,
         LifeEventEntity::class,
         InsightEntity::class,
-        UserProfileEntity::class
+        UserProfileEntity::class,
+        TodoEntity::class,
+        PomodoroSessionEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -40,6 +42,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun lifeEventDao(): LifeEventDao
     abstract fun insightDao(): InsightDao
     abstract fun userProfileDao(): UserProfileDao
+    abstract fun todoDao(): TodoDao
+    abstract fun pomodoroSessionDao(): PomodoroSessionDao
 
     companion object {
         @Volatile
@@ -50,8 +54,9 @@ abstract class AppDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "dailytrack.db"
-                ).build()
+                    "soultrack.db"
+                ).fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

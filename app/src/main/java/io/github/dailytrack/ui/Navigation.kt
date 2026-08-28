@@ -11,24 +11,27 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
 import io.github.dailytrack.ui.dashboard.DashboardScreen
 import io.github.dailytrack.ui.timer.TimerScreen
-import io.github.dailytrack.ui.food.FoodLogScreen
-import io.github.dailytrack.ui.growth.GrowthScreen
+import io.github.dailytrack.ui.todo.TodoScreen
+import io.github.dailytrack.ui.pomodoro.PomodoroScreen
 import io.github.dailytrack.ui.insights.InsightsScreen
+import io.github.dailytrack.ui.growth.GrowthScreen
 import io.github.dailytrack.ui.settings.SettingsScreen
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Dashboard : Screen("dashboard", "Home", Icons.Default.Home)
     data object Timer : Screen("timer", "Timer", Icons.Default.Timer)
+    data object Todo : Screen("todo", "Todo", Icons.Default.CheckCircle)
+    data object Pomodoro : Screen("pomodoro", "Pomodoro", Icons.Default.Coffee)
     data object Growth : Screen("growth", "Growth", Icons.Default.TrendingUp)
     data object Insights : Screen("insights", "Insights", Icons.Default.Lightbulb)
-    data object Food : Screen("food", "Food", Icons.Default.Restaurant)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
 val bottomNavItems = listOf(
     Screen.Dashboard,
     Screen.Timer,
-    Screen.Growth,
+    Screen.Todo,
+    Screen.Pomodoro,
     Screen.Insights,
 )
 
@@ -67,7 +70,8 @@ fun DailyTrackNavHost() {
         ) {
             composable(Screen.Dashboard.route) { DashboardScreen(navController) }
             composable(Screen.Timer.route) { TimerScreen(navController) }
-            composable(Screen.Food.route) { FoodLogScreen(navController) }
+            composable(Screen.Todo.route) { TodoScreen(navController) }
+            composable(Screen.Pomodoro.route) { PomodoroScreen(navController) }
             composable(Screen.Growth.route) { GrowthScreen(navController) }
             composable(Screen.Insights.route) { InsightsScreen(navController) }
             composable(Screen.Settings.route) { SettingsScreen(navController) }

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.dailytrack.data.api.QuotesApi
+import io.github.dailytrack.data.db.entity.TodoEntity
 import io.github.dailytrack.service.PomodoroForegroundService
 import io.github.dailytrack.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
@@ -68,6 +69,10 @@ fun PomodoroScreen(
     
     var flashProgress by remember { mutableFloatStateOf(0f) }
     var flashColor by remember { mutableStateOf(Color(0xFFE94560)) }
+    
+    var showPriorityWarning by remember { mutableStateOf(false) }
+    var pendingPomodoroTodo by remember { mutableStateOf<TodoEntity?>(null) }
+    var pendingWorkDuration by remember { mutableIntStateOf(25) }
     
     var currentQuote by remember { mutableStateOf("Loading inspiring quote...") }
     var quoteAuthor by remember { mutableStateOf("") }
@@ -497,6 +502,19 @@ fun PomodoroScreen(
                     item {
                         Button(
                             onClick = {
+                                val selectedTodo = activeTodos.find { it.id == selectedTodoId }
+                                if (selectedTodo != null && selectedTodo.priority < 3) {
+                                    val higherPending = activeTodos.filter {
+                                        it.priority > selectedTodo.priority && it.id != selectedTodo.id
+                                    }
+                                    if (higherPending.isNotEmpty()) {
+                                        pendingPomodoroTodo = selectedTodo
+                                        pendingWorkDuration = selectedWorkDuration
+                                        showPriorityWarning = true
+                                        return@Button
+                                    }
+                                }
+
                                 flashProgress = 1f
                                 flashColor = quoteColor
                                 
@@ -618,5 +636,135 @@ fun PomodoroScreen(
                 }
             }
         }
+    }
+
+    if (showPriorityWarning && pendingPomodoroTodo != null) {
+        val higherTasks = activeTodos.filter {
+            it.priority > pendingPomodoroTodo!!.priority && it.id != pendingPomodoroTodo!!.id
+        }
+        val priorityLabel = when (pendingPomodoroTodo!!.priority) {
+            2 -> "Medium"
+            1 -> "Low"
+            else -> "None"
+        }
+        val higherLabel = when (higherTasks.maxOfOrNull { it.priority }) {
+            3 -> "High"
+            2 -> "Medium"
+            else -> "higher"
+        }
+
+        AlertDialog(
+            onDismissRequest = {
+                showPriorityWarning = false
+                pendingPomodoroTodo = null
+            },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFF57C00)) },
+            title = { Text("Priority Warning") },
+            text = {
+                Column {
+                    Text(
+                        "You're starting a ${priorityLabel} priority task, but you have ${higherTasks.size} $higherLabel priority task(s) pending:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    higherTasks.take(3).forEach { task ->
+                        Row(
+                            modifier = Modifier.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                color = when (task.priority) {
+                                    3 -> Color(0xFFE94560).copy(alpha = 0.15f)
+                                    2 -> Color(0xFFF57C00).copy(alpha = 0.15f)
+                                    else -> Color(0xFF4CAF50).copy(alpha = 0.15f)
+                                },
+                                shape = MaterialTheme.shapes.extraSmall
+                            ) {
+                                Text(
+                                    text = when (task.priority) {
+                                        3 -> "HIGH"
+                                        2 -> "MED"
+                                        else -> "LOW"
+                                    },
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = when (task.priority) {
+                                        3 -> Color(0xFFE94560)
+                                        2 -> Color(0xFFF57C00)
+                                        else -> Color(0xFF4CAF50)
+                                    },
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(task.title, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    if (higherTasks.size > 3) {
+                        Text(
+                            "...and ${higherTasks.size - 3} more",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Consider completing higher priority tasks first.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val todo = pendingPomodoroTodo ?: return@TextButton
+                    flashProgress = 1f
+                    flashColor = quoteColor
+
+                    coroutineScope.launch {
+                        delay(800)
+                        flashProgress = 0f
+                    }
+
+                    val todoTitle = todo.title
+                    val colorInt = android.graphics.Color.rgb(
+                        (quoteColor.red * 255).toInt(),
+                        (quoteColor.green * 255).toInt(),
+                        (quoteColor.blue * 255).toInt()
+                    )
+                    val intent = Intent(context, PomodoroForegroundService::class.java).apply {
+                        putExtra(PomodoroForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
+                        putExtra(PomodoroForegroundService.EXTRA_DURATION, pendingWorkDuration)
+                        putExtra(PomodoroForegroundService.EXTRA_TODO_TITLE, todoTitle)
+                        putExtra(PomodoroForegroundService.EXTRA_IS_BREAK, false)
+                        putExtra(PomodoroForegroundService.EXTRA_WORK_COLOR, colorInt)
+                    }
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
+
+                    viewModel.startPomodoro(
+                        todo.id,
+                        todo.categoryId,
+                        pendingWorkDuration
+                    )
+
+                    showPriorityWarning = false
+                    pendingPomodoroTodo = null
+                }) {
+                    Text("Start Anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showPriorityWarning = false
+                    pendingPomodoroTodo = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

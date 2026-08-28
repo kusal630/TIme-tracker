@@ -4,7 +4,6 @@ import android.content.Intent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,6 +29,7 @@ fun TimerScreen(
 ) {
     val context = LocalContext.current
     val activeSession by viewModel.activeSession.collectAsState()
+    val categories by viewModel.categories.collectAsState()
     var sessionTitle by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableLongStateOf(0L) }
 
@@ -50,6 +50,13 @@ fun TimerScreen(
     val hours = elapsedSeconds / 3600
     val minutes = (elapsedSeconds % 3600) / 60
     val seconds = elapsedSeconds % 60
+
+    val categoryList = remember(categories) {
+        listOf(0L to "No category") + categories.values
+            .filter { !it.archived }
+            .sortedBy { it.name }
+            .map { it.id to it.name }
+    }
 
     Scaffold(
         topBar = {
@@ -135,23 +142,7 @@ fun TimerScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 CategoryDropdown(
-                    categories = listOf(
-                        0L to "No category",
-                        1L to "Deep Work",
-                        2L to "Study/Learning",
-                        3L to "Skill Practice",
-                        4L to "Planning",
-                        5L to "Chores/Errands",
-                        6L to "Creative Work",
-                        7L to "Reading",
-                        8L to "Course/Lesson",
-                        12L to "Running",
-                        13L to "Walking",
-                        14L to "Strength Training",
-                        17L to "Meals",
-                        25L to "Social Media Scrolling",
-                        29L to "Sleep",
-                    ),
+                    categories = categoryList,
                     selectedId = selectedCategoryId,
                     onSelected = { selectedCategoryId = it ?: 0L }
                 )
@@ -170,11 +161,12 @@ fun TimerScreen(
                                 sessionTitle = ""
                                 selectedCategoryId = 0L
                             } else {
+                                val catName = categories[selectedCategoryId]?.name ?: ""
                                 viewModel.startSession(sessionTitle, selectedCategoryId)
                                 val intent = Intent(context, TimerForegroundService::class.java).apply {
                                     putExtra(TimerForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
                                     putExtra(TimerForegroundService.EXTRA_TITLE, sessionTitle.ifBlank { "Active Session" })
-                                    putExtra(TimerForegroundService.EXTRA_CATEGORY, "")
+                                    putExtra(TimerForegroundService.EXTRA_CATEGORY, catName)
                                 }
                                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                                     context.startForegroundService(intent)
@@ -234,6 +226,16 @@ fun TimerScreen(
                                 ) {
                                     Text("Title", style = MaterialTheme.typography.bodyMedium)
                                     Text(activeSession?.title ?: "", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            val activeCategoryName = activeSession?.categoryId?.let { categories[it]?.name } ?: ""
+                            if (activeCategoryName.isNotBlank()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Category", style = MaterialTheme.typography.bodyMedium)
+                                    Text(activeCategoryName, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

@@ -1,5 +1,6 @@
 package io.github.dailytrack.ui.food
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -8,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -15,6 +17,7 @@ import androidx.navigation.NavController
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FoodLogScreen(navController: NavController) {
+    val context = LocalContext.current
     var waterAmount by remember { mutableStateOf("") }
     var foodName by remember { mutableStateOf("") }
     var selectedMealType by remember { mutableStateOf("BREAKFAST") }
@@ -59,7 +62,9 @@ fun FoodLogScreen(navController: NavController) {
                         ) {
                             listOf(250, 500, 750, 1000).forEach { amount ->
                                 FilledTonalButton(
-                                    onClick = { waterAmount = "" },
+                                    onClick = {
+                                        Toast.makeText(context, "Logged ${amount}ml water", Toast.LENGTH_SHORT).show()
+                                    },
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text("${amount}ml")
@@ -79,7 +84,17 @@ fun FoodLogScreen(navController: NavController) {
                                 singleLine = true
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            FilledTonalButton(onClick = { waterAmount = "" }) {
+                            FilledTonalButton(
+                                onClick = {
+                                    val amount = waterAmount.toIntOrNull()
+                                    if (amount != null && amount > 0) {
+                                        Toast.makeText(context, "Logged ${amount}ml water", Toast.LENGTH_SHORT).show()
+                                        waterAmount = ""
+                                    } else {
+                                        Toast.makeText(context, "Enter valid amount", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            ) {
                                 Text("Add")
                             }
                         }
@@ -119,7 +134,14 @@ fun FoodLogScreen(navController: NavController) {
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Button(
-                            onClick = { foodName = "" },
+                            onClick = {
+                                if (foodName.isNotBlank()) {
+                                    Toast.makeText(context, "Logged ${foodName} for $selectedMealType", Toast.LENGTH_SHORT).show()
+                                    foodName = ""
+                                } else {
+                                    Toast.makeText(context, "Enter food name", Toast.LENGTH_SHORT).show()
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null)

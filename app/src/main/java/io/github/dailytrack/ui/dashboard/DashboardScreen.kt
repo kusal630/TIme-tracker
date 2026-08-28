@@ -300,17 +300,17 @@ fun TimeTrackingCard(coverage: io.github.dailytrack.engine.TimeCoverage?) {
             ) {
                 MetricItem(
                     "Productive",
-                    formatDuration((coverage?.productiveSeconds ?: 0) + (coverage?.learningSeconds ?: 0)),
+                    formatDurationHMS((coverage?.productiveSeconds ?: 0) + (coverage?.learningSeconds ?: 0)),
                     Color(0xFF2E7D32)
                 )
                 MetricItem(
                     "Exercise",
-                    formatDuration(coverage?.exerciseSeconds ?: 0),
+                    formatDurationHMS(coverage?.exerciseSeconds ?: 0),
                     Color(0xFFE65100)
                 )
                 MetricItem(
                     "Sleep",
-                    formatDuration(coverage?.sleepSeconds ?: 0),
+                    formatDurationHMS(coverage?.sleepSeconds ?: 0),
                     Color(0xFF311B92)
                 )
             }
@@ -321,17 +321,17 @@ fun TimeTrackingCard(coverage: io.github.dailytrack.engine.TimeCoverage?) {
             ) {
                 MetricItem(
                     "Wasted",
-                    formatDuration(coverage?.wastedSeconds ?: 0),
+                    formatDurationHMS(coverage?.wastedSeconds ?: 0),
                     Color(0xFFC62828)
                 )
                 MetricItem(
                     "Untracked",
-                    formatDuration(coverage?.untrackedSeconds ?: 0),
+                    formatDurationHMS(coverage?.untrackedSeconds ?: 0),
                     Color(0xFF757575)
                 )
                 MetricItem(
                     "Tracked",
-                    formatDuration(coverage?.trackedSeconds ?: 0),
+                    formatDurationHMS(coverage?.trackedSeconds ?: 0),
                     MaterialTheme.colorScheme.primary
                 )
             }
@@ -353,7 +353,7 @@ fun MetricItem(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = color
         )
@@ -376,6 +376,7 @@ fun CompletedSessionCard(
 
     val hours = TimeUnit.MILLISECONDS.toHours(duration)
     val minutes = TimeUnit.MILLISECONDS.toMinutes(duration) % 60
+    val seconds = TimeUnit.MILLISECONDS.toSeconds(duration) % 60
 
     val categoryName = session.categoryId?.let { categories[it]?.name } ?: ""
     val startTimeStr = java.time.Instant.ofEpochMilli(session.startTime)
@@ -428,7 +429,7 @@ fun CompletedSessionCard(
                 }
             }
             Text(
-                text = if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m",
+                text = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -524,8 +525,13 @@ fun InsightCard(insight: io.github.dailytrack.data.db.entity.InsightEntity, onDi
     }
 }
 
-fun formatDuration(seconds: Long): String {
+fun formatDurationHMS(seconds: Long): String {
     val hours = seconds / 3600
     val minutes = (seconds % 3600) / 60
-    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
+    val secs = seconds % 60
+    return when {
+        hours > 0 -> String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, secs)
+        minutes > 0 -> String.format(java.util.Locale.US, "%02d:%02d", minutes, secs)
+        else -> String.format(java.util.Locale.US, "%02d", secs)
+    }
 }

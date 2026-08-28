@@ -23,6 +23,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.media.RingtoneManager
 import android.os.Build
@@ -142,7 +143,11 @@ class PomodoroForegroundService : Service() {
             .apply()
 
         val notification = buildNotification()
-        startForeground(NOTIFICATION_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
         startNotificationUpdates()
         PomodoroWidgetProvider.updateWidgets(this)
         return START_STICKY

@@ -35,6 +35,8 @@ class TodoRepository(
     fun getPendingTodosWithDeadline(now: Long): Flow<List<TodoEntity>> = todoDao.getPendingTodosWithDeadline(now)
     fun getActiveTodoCount(): Flow<Int> = todoDao.getActiveTodoCount()
     fun getCompletedTodoCount(): Flow<Int> = todoDao.getCompletedTodoCount()
+    fun getTodayActiveTodoCount(dayStart: Long, dayEnd: Long): Flow<Int> = todoDao.getTodayActiveTodoCount(dayStart, dayEnd)
+    fun getTodayCompletedTodoCount(dayStart: Long, dayEnd: Long): Flow<Int> = todoDao.getTodayCompletedTodoCount(dayStart, dayEnd)
     fun getHighPriorityCount(): Flow<Int> = todoDao.getHighPriorityCount()
     fun getOverdueCount(now: Long): Flow<Int> = todoDao.getOverdueCount(now)
 

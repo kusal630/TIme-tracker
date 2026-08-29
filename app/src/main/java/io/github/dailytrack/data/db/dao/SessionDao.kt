@@ -56,8 +56,11 @@ interface SessionDao {
     @Delete
     suspend fun delete(session: SessionEntity)
 
-    @Query("UPDATE sessions SET isActive = 0, updatedAt = :now")
+    @Query("UPDATE sessions SET isActive = 0, endTime = :now, updatedAt = :now WHERE isActive = 1")
     suspend fun deactivateAllSessions(now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE sessions SET isActive = 0, endTime = :now, updatedAt = :now WHERE isActive = 1")
+    suspend fun stopActiveSession(now: Long = System.currentTimeMillis())
 
     @Query("SELECT * FROM sessions WHERE categoryId = :categoryId AND startTime >= :start AND startTime < :end ORDER BY startTime")
     fun getSessionsByCategoryForDay(categoryId: Long, start: Long, end: Long): Flow<List<SessionEntity>>

@@ -79,9 +79,10 @@ class TimeCoverageEngine {
 
         for (session in sessions) {
             if (session.isActive) continue
+            if (session.endTime == null) continue
 
             val sessionStart = maxOf(session.startTime, dayStart)
-            val sessionEnd = minOf(session.endTime ?: dayEnd, dayEnd)
+            val sessionEnd = minOf(session.endTime, dayEnd)
             if (sessionEnd > sessionStart) {
                 val duration = (sessionEnd - sessionStart) / 1000
                 trackedSeconds += duration
@@ -103,7 +104,7 @@ class TimeCoverageEngine {
             }
         }
 
-        val untrackedSeconds = totalDaySeconds - trackedSeconds
+        val untrackedSeconds = (totalDaySeconds - trackedSeconds).coerceAtLeast(0)
 
         return TimeCoverage(
             date = date,

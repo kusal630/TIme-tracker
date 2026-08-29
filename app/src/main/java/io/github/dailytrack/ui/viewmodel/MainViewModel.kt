@@ -133,18 +133,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            todoRepo.getActiveTodoCount().collect { count ->
-                _activeTodoCount.value = count
-            }
-        }
-
-        viewModelScope.launch {
-            todoRepo.getCompletedTodoCount().collect { count ->
-                _completedTodoCount.value = count
-            }
-        }
-
-        viewModelScope.launch {
             todoRepo.getHighPriorityCount().collect { count ->
                 _highPriorityCount.value = count
             }
@@ -157,7 +145,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            _selectedDate.collect { date -> loadDayData(date) }
+            _selectedDate.collect { date ->
+                loadDayData(date)
+                val zone = ZoneId.systemDefault()
+                val (dayStart, dayEnd) = getDayRange(date, zone)
+                todoRepo.getTodayActiveTodoCount(dayStart, dayEnd).collect { count ->
+                    _activeTodoCount.value = count
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            _selectedDate.collect { date ->
+                val zone = ZoneId.systemDefault()
+                val (dayStart, dayEnd) = getDayRange(date, zone)
+                todoRepo.getTodayCompletedTodoCount(dayStart, dayEnd).collect { count ->
+                    _completedTodoCount.value = count
+                }
+            }
         }
 
         viewModelScope.launch {
@@ -175,6 +180,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             sessionRepo.getSessionsForDay(dayStart, dayEnd).collect { sessions ->
                 _todaySessions.value = sessions
                 _todayCoverage.value = timeEngine.calculateCoverage(sessions, _categories.value, date, zone)
+                calculateGrowthScore()
+                detectLoop()
+                generateInsights()
+                calculateDailyProductivity()
             }
         }
 
@@ -185,17 +194,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            calculateGrowthScore()
-            detectLoop()
-        }
-
-        viewModelScope.launch {
-            generateInsights()
-        }
-
-        viewModelScope.launch {
             calculateWeeklyStats()
-            calculateDailyProductivity()
         }
     }
 
@@ -237,6 +236,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             sessionRepo.stopActiveSession(now)
         }
+    }
+
+    fun reloadAll() {
+        loadDayData(_selectedDate.value)
     }
 
     fun dismissInsight(id: Long) {

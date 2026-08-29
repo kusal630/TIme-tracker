@@ -68,6 +68,12 @@ interface TodoDao {
     @Query("SELECT COUNT(*) FROM todos WHERE isCompleted = 1")
     fun getCompletedTodoCount(): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM todos WHERE isCompleted = 0 AND createdAt >= :dayStart AND createdAt < :dayEnd")
+    fun getTodayActiveTodoCount(dayStart: Long, dayEnd: Long): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM todos WHERE isCompleted = 1 AND completedAt >= :dayStart AND completedAt < :dayEnd")
+    fun getTodayCompletedTodoCount(dayStart: Long, dayEnd: Long): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM todos WHERE isCompleted = 0 AND priority = 3")
     fun getHighPriorityCount(): Flow<Int>
 

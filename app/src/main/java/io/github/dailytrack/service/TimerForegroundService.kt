@@ -28,6 +28,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import io.github.dailytrack.MainActivity
+import io.github.dailytrack.SoulTrackApp
 import io.github.dailytrack.widget.TimerWidgetProvider
 import kotlinx.coroutines.*
 
@@ -90,9 +91,16 @@ class TimerForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 timerJob?.cancel()
+                sedentaryJob?.cancel()
+                val now = System.currentTimeMillis()
+                val db = (applicationContext as SoulTrackApp).database
+                CoroutineScope(Dispatchers.IO).launch {
+                    db.sessionDao().stopActiveSession(now)
+                }
                 val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
                 prefs.edit().putBoolean("is_running", false).apply()
                 notificationManager?.cancel(NOTIFICATION_ID)
+                notificationManager?.cancel(SEDENTARY_NOTIFICATION_ID)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 TimerWidgetProvider.updateWidgets(this)

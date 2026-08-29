@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:padding="12dp">
+    android:padding="16dp">
 
     <TextView
         android:id="@+id/widget_pom_title"
@@ -14,7 +14,7 @@
         android:layout_centerHorizontal="true"
         android:text="Pomodoro"
         android:textColor="#FFFFFF"
-        android:textSize="14sp"
+        android:textSize="15sp"
         android:textStyle="bold" />
 
     <TextView
@@ -23,10 +23,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_title"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="4dp"
         android:text="Ready to focus"
         android:textColor="#B0FFFFFF"
-        android:textSize="11sp" />
+        android:textSize="12sp" />
 
     <TextView
         android:id="@+id/widget_pom_timer"
@@ -34,10 +34,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_status"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="12dp"
         android:text="25:00"
         android:textColor="#FFFFFF"
-        android:textSize="44sp"
+        android:textSize="48sp"
         android:textStyle="bold"
         android:fontFamily="monospace" />
 
@@ -47,10 +47,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_timer"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="6dp"
         android:text="Sessions: 0"
         android:textColor="#80FFFFFF"
-        android:textSize="10sp" />
+        android:textSize="11sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -65,24 +65,24 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_background"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="8dp"
+            android:paddingHorizontal="28dp"
+            android:paddingVertical="10dp"
             android:text="START"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="10dp" />
 
         <TextView
             android:id="@+id/widget_pom_btn_stop"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_stop_background"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="8dp"
+            android:paddingHorizontal="28dp"
+            android:paddingVertical="10dp"
             android:text="STOP"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:visibility="gone" />
 
@@ -91,11 +91,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_background"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="8dp"
+            android:paddingHorizontal="28dp"
+            android:paddingVertical="10dp"
             android:text="RESET"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:visibility="gone" />
     </LinearLayout>

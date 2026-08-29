@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:padding="12dp">
+    android:padding="16dp">
 
     <TextView
         android:id="@+id/widget_title"
@@ -14,7 +14,7 @@
         android:layout_centerHorizontal="true"
         android:text="Soul Track"
         android:textColor="#FFFFFF"
-        android:textSize="14sp"
+        android:textSize="15sp"
         android:textStyle="bold" />
 
     <TextView
@@ -23,10 +23,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_title"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="4dp"
         android:text="Ready to start"
         android:textColor="#B0FFFFFF"
-        android:textSize="11sp" />
+        android:textSize="12sp" />
 
     <TextView
         android:id="@+id/widget_category"
@@ -34,13 +34,13 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_session_name"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="4dp"
         android:text="Tap to select category"
         android:textColor="#80FFFFFF"
-        android:textSize="10sp"
+        android:textSize="11sp"
         android:background="@drawable/widget_button_background"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="2dp" />
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="3dp" />
 
     <TextView
         android:id="@+id/widget_timer"
@@ -48,10 +48,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_category"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="10dp"
         android:text="00:00:00"
         android:textColor="#FFFFFF"
-        android:textSize="32sp"
+        android:textSize="36sp"
         android:textStyle="bold"
         android:fontFamily="monospace" />
 
@@ -61,14 +61,15 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_timer"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="6dp"
         android:gravity="center"
         android:text=""
         android:textColor="#B0FFFFFF"
-        android:textSize="10sp"
+        android:textSize="11sp"
         android:fontFamily="serif"
         android:fontStyle="italic"
-        android:maxLines="1"
+        android:maxLines="2"
+        android:lineSpacingMultiplier="1.1"
         android:ellipsize="end"
         android:visibility="gone" />
 
@@ -78,10 +79,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_quote"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:text=""
         android:textColor="#80FFFFFF"
-        android:textSize="8sp"
+        android:textSize="9sp"
         android:visibility="gone" />
 
     <LinearLayout
@@ -97,26 +98,26 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_background"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="8dp"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="10dp"
             android:text="START"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="10dp" />
 
         <TextView
             android:id="@+id/widget_btn_stop"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_stop_background"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="8dp"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="10dp"
             android:text="STOP"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="10dp"
             android:visibility="gone" />
 
         <TextView
@@ -124,11 +125,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_background"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="8dp"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="10dp"
             android:text="RESET"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:visibility="gone" />
     </LinearLayout>

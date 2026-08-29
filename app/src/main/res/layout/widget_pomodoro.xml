@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:padding="16dp">
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/widget_pom_title"
@@ -14,7 +14,7 @@
         android:layout_centerHorizontal="true"
         android:text="Pomodoro"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textSize="14sp"
         android:textStyle="bold" />
 
     <TextView
@@ -23,10 +23,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_title"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         android:text="Ready to focus"
         android:textColor="#B0FFFFFF"
-        android:textSize="12sp" />
+        android:textSize="11sp" />
 
     <TextView
         android:id="@+id/widget_pom_timer"
@@ -34,10 +34,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_status"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:text="25:00"
         android:textColor="#FFFFFF"
-        android:textSize="48sp"
+        android:textSize="44sp"
         android:textStyle="bold"
         android:fontFamily="monospace" />
 
@@ -47,10 +47,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_timer"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="4dp"
         android:text="Sessions: 0"
         android:textColor="#80FFFFFF"
-        android:textSize="11sp" />
+        android:textSize="10sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -69,7 +69,7 @@
             android:paddingVertical="8dp"
             android:text="START"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:layout_marginEnd="8dp" />
 
@@ -82,7 +82,7 @@
             android:paddingVertical="8dp"
             android:text="STOP"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:visibility="gone" />
 
@@ -95,7 +95,7 @@
             android:paddingVertical="8dp"
             android:text="RESET"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:visibility="gone" />
     </LinearLayout>

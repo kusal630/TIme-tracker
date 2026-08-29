@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:padding="16dp">
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/widget_title"
@@ -14,7 +14,7 @@
         android:layout_centerHorizontal="true"
         android:text="Soul Track"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textSize="14sp"
         android:textStyle="bold" />
 
     <TextView
@@ -23,10 +23,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_title"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         android:text="Ready to start"
         android:textColor="#B0FFFFFF"
-        android:textSize="12sp" />
+        android:textSize="11sp" />
 
     <TextView
         android:id="@+id/widget_category"
@@ -48,10 +48,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_category"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:text="00:00:00"
         android:textColor="#FFFFFF"
-        android:textSize="36sp"
+        android:textSize="32sp"
         android:textStyle="bold"
         android:fontFamily="monospace" />
 
@@ -61,14 +61,14 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_timer"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="4dp"
         android:gravity="center"
         android:text=""
         android:textColor="#B0FFFFFF"
-        android:textSize="11sp"
+        android:textSize="10sp"
         android:fontFamily="serif"
         android:fontStyle="italic"
-        android:maxLines="2"
+        android:maxLines="1"
         android:ellipsize="end"
         android:visibility="gone" />
 
@@ -78,18 +78,17 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_quote"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="1dp"
         android:text=""
         android:textColor="#80FFFFFF"
-        android:textSize="9sp"
+        android:textSize="8sp"
         android:visibility="gone" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/widget_quote_author"
+        android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="10dp"
         android:gravity="center"
         android:orientation="horizontal">
 
@@ -102,7 +101,7 @@
             android:paddingVertical="8dp"
             android:text="START"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:layout_marginEnd="8dp" />
 
@@ -115,7 +114,7 @@
             android:paddingVertical="8dp"
             android:text="STOP"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:layout_marginEnd="8dp"
             android:visibility="gone" />
@@ -129,7 +128,7 @@
             android:paddingVertical="8dp"
             android:text="RESET"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:visibility="gone" />
     </LinearLayout>

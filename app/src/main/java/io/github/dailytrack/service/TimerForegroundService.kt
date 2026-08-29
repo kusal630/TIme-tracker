@@ -37,12 +37,16 @@ class TimerForegroundService : Service() {
     private var sessionTitle: String = ""
     private var categoryName: String = ""
     private var categoryType: String = ""
+    private var sedentaryJob: Job? = null
+    private var sedentaryReminderCount: Int = 0
     private var notificationManager: NotificationManager? = null
     private var timerJob: Job? = null
 
     companion object {
         const val CHANNEL_ID = "soultrack_timer"
+        const val CHANNEL_SEDENTARY = "soultrack_sedentary"
         const val NOTIFICATION_ID = 1001
+        const val SEDENTARY_NOTIFICATION_ID = 1004
         const val ACTION_STOP = "io.github.dailytrack.STOP_TIMER"
         const val EXTRA_START_TIME = "start_time"
         const val EXTRA_TITLE = "title"
@@ -117,6 +121,7 @@ class TimerForegroundService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         startNotificationUpdates()
+        scheduleSedentaryReminder()
         TimerWidgetProvider.updateWidgets(this)
         return START_STICKY
     }
@@ -186,18 +191,94 @@ class TimerForegroundService : Service() {
                 description = "Shows active timer session"
                 setShowBadge(false)
             }
+            val sedentaryChannel = NotificationChannel(
+                CHANNEL_SEDENTARY,
+                "Movement Reminders",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Reminds you to take breaks and stay active"
+                setShowBadge(true)
+                lightColor = 0xFF4CAF50.toInt()
+                enableLights(true)
+                enableVibration(true)
+            }
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(sedentaryChannel)
         }
+    }
+
+    private fun scheduleSedentaryReminder() {
+        sedentaryJob?.cancel()
+        sedentaryReminderCount = 0
+        sedentaryJob = scope.launch {
+            while (isActive) {
+                delay(25 * 60 * 1000L)
+                if (!isActive) break
+                sedentaryReminderCount++
+                showSedentaryNotification()
+            }
+        }
+    }
+
+    private fun showSedentaryNotification() {
+        val isProductive = categoryType in listOf("PRODUCTIVE", "LEARNING")
+        val tips = if (isProductive) {
+            listOf(
+                "You've been focused for ${sedentaryReminderCount * 25} min! Stand up and stretch your back.",
+                "Quick break: Do 10 jumping jacks to reset your focus.",
+                "Eye strain break: Look at something 20 feet away for 20 seconds.",
+                "Walk around for 2 minutes - your brain will thank you.",
+                "Stretch your wrists and fingers to prevent strain.",
+                "Stand up and do 5 shoulder rolls each direction.",
+                "Deep breath time: Inhale 4 sec, hold 4, exhale 6. Repeat 3 times.",
+                "Walk to get some water - hydration helps focus."
+            )
+        } else {
+            listOf(
+                "Time to get moving! Stand up and stretch for 2 minutes.",
+                "Active break: Do 10 squats or walk around the room.",
+                "Shake out your body - get the blood flowing!",
+                "Quick stretch: Reach for the ceiling, then touch your toes.",
+                "Take a walk outside if you can - fresh air helps!",
+                "Do some neck rolls to release tension.",
+                "Stand up and march in place for 1 minute.",
+                "Stretch your hips: Stand and lift each knee to chest."
+            )
+        }
+        val tip = tips.random()
+
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_SEDENTARY)
+            .setContentTitle("Time to Move!")
+            .setContentText(tip)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(tip))
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+
+        notificationManager?.notify(SEDENTARY_NOTIFICATION_ID, notification)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         timerJob?.cancel()
+        sedentaryJob?.cancel()
         val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
         prefs.edit().putBoolean("is_running", false).apply()
         notificationManager?.cancel(NOTIFICATION_ID)
+        notificationManager?.cancel(SEDENTARY_NOTIFICATION_ID)
         scope.cancel()
         super.onDestroy()
     }

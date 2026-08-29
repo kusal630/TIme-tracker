@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:padding="16dp">
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/widget_quote_title"
@@ -14,7 +14,7 @@
         android:layout_centerHorizontal="true"
         android:text="Inspiration"
         android:textColor="#FFFFFF"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:textStyle="bold" />
 
     <TextView
@@ -23,10 +23,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_quote_title"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="4dp"
         android:text="&quot;"
         android:textColor="#E94560"
-        android:textSize="32sp"
+        android:textSize="28sp"
         android:textStyle="bold" />
 
     <TextView
@@ -38,10 +38,10 @@
         android:gravity="center"
         android:text="Loading..."
         android:textColor="#FFFFFF"
-        android:textSize="13sp"
+        android:textSize="12sp"
         android:fontFamily="serif"
         android:fontStyle="italic"
-        android:maxLines="4"
+        android:maxLines="3"
         android:ellipsize="end" />
 
     <TextView
@@ -50,10 +50,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_quote_text"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="4dp"
         android:text=""
         android:textColor="#80FFFFFF"
-        android:textSize="11sp" />
+        android:textSize="10sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -68,7 +68,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_background"
-            android:paddingHorizontal="24dp"
+            android:paddingHorizontal="20dp"
             android:paddingVertical="8dp"
             android:text="NEXT"
             android:textColor="#FFFFFF"
@@ -81,7 +81,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_background"
-            android:paddingHorizontal="24dp"
+            android:paddingHorizontal="20dp"
             android:paddingVertical="8dp"
             android:text="SAVE"
             android:textColor="#FFFFFF"

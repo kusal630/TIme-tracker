@@ -45,12 +45,15 @@ class PomodoroForegroundService : Service() {
     private var notificationManager: NotificationManager? = null
     private var timerJob: Job? = null
     private var workColor: Int = 0xFFE94560.toInt()
+    private var sedentaryJob: Job? = null
     private var breakColor: Int = 0xFFFFAB40.toInt()
 
     companion object {
         const val CHANNEL_WORK = "soultrack_work"
         const val CHANNEL_BREAK = "soultrack_break"
+        const val CHANNEL_SEDENTARY = "soultrack_sedentary"
         const val NOTIFICATION_ID = 1002
+        const val SEDENTARY_NOTIFICATION_ID = 1003
         const val ACTION_STOP = "io.github.dailytrack.STOP_POMODORO"
         const val ACTION_COMPLETE = "io.github.dailytrack.COMPLETE_POMODORO"
         const val ACTION_COMPLETE_WORK = "io.github.dailytrack.COMPLETE_POMODORO_WORK"
@@ -149,6 +152,9 @@ class PomodoroForegroundService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         startNotificationUpdates()
+        if (isBreak) {
+            scheduleSedentaryReminder()
+        }
         PomodoroWidgetProvider.updateWidgets(this)
         return START_STICKY
     }
@@ -294,19 +300,88 @@ class PomodoroForegroundService : Service() {
                 enableLights(true)
             }
 
+            val sedentaryChannel = NotificationChannel(
+                CHANNEL_SEDENTARY,
+                "Movement Reminders",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Reminds you to stand and stretch during breaks"
+                setShowBadge(true)
+                lightColor = 0xFF4CAF50.toInt()
+                enableLights(true)
+                enableVibration(true)
+            }
+
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(workChannel)
             notificationManager.createNotificationChannel(breakChannel)
+            notificationManager.createNotificationChannel(sedentaryChannel)
         }
+    }
+
+    private fun scheduleSedentaryReminder() {
+        sedentaryJob?.cancel()
+        sedentaryJob = scope.launch {
+            delay(30_000L)
+            if (isActive && isBreak) {
+                showSedentaryNotification()
+            }
+        }
+    }
+
+    private fun showSedentaryNotification() {
+        val tips = listOf(
+            "Stand up and stretch your arms above your head!",
+            "Take a walk around the room for 2 minutes",
+            "Do 10 squats to get your blood flowing",
+            "Stretch your neck: roll it slowly in circles",
+            "Touch your toes - hold for 15 seconds",
+            "Do some calf raises to activate your legs",
+            "Open a window and take 5 deep breaths",
+            "Shake out your hands and wrists",
+            "Stretch your back: arch and release",
+            "Walk up and down a flight of stairs"
+        )
+        val tip = tips.random()
+
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val dismissIntent = PendingIntent.getService(
+            this, 4,
+            Intent(this, PomodoroForegroundService::class.java).apply { action = ACTION_STOP },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_SEDENTARY)
+            .setContentTitle("Time to Move!")
+            .setContentText(tip)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(tip))
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentIntent(pendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss", dismissIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+
+        notificationManager?.notify(SEDENTARY_NOTIFICATION_ID, notification)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         timerJob?.cancel()
+        sedentaryJob?.cancel()
         val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
         prefs.edit().putBoolean("is_running", false).apply()
         notificationManager?.cancel(NOTIFICATION_ID)
+        notificationManager?.cancel(SEDENTARY_NOTIFICATION_ID)
         scope.cancel()
         super.onDestroy()
     }

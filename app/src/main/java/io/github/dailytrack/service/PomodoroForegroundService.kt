@@ -20,6 +20,7 @@ import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import io.github.dailytrack.MainActivity
 import io.github.dailytrack.SoulTrackApp
+import io.github.dailytrack.data.db.entity.SessionEntity
 import io.github.dailytrack.widget.PomodoroWidgetProvider
 import kotlinx.coroutines.*
 
@@ -120,6 +121,7 @@ class PomodoroForegroundService : Service() {
         todoTitle = title
         startTime = System.currentTimeMillis()
 
+        startTrackingSession(title)
         enableDnd()
         acquireWakeLock()
         playTransitionSound(isWork = true)
@@ -144,11 +146,12 @@ class PomodoroForegroundService : Service() {
         breakDurationMinutes = durationMinutes
         startTime = System.currentTimeMillis()
 
+        stopTrackingSession()
         disableDnd()
         acquireWakeLock()
         playTransitionSound(isWork = false)
         val breakLabel = if (isLong) "Long break" else "Short break"
-        showTransitionNotification("$breakLabel started", "Relax for $durationMinutes minutes")
+        showBreakQuoteNotification("$breakLabel started", "Relax for $durationMinutes minutes")
 
         updatePrefs()
         val breakNotification = buildNotification()
@@ -214,6 +217,7 @@ class PomodoroForegroundService : Service() {
     private fun stopAll() {
         timerJob?.cancel()
         sedentaryJob?.cancel()
+        stopTrackingSession()
         disableDnd()
         releaseWakeLock()
         notificationManager?.cancel(NOTIFICATION_ID)
@@ -222,6 +226,69 @@ class PomodoroForegroundService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         PomodoroWidgetProvider.updateWidgets(this)
+    }
+
+    private fun startTrackingSession(title: String) {
+        val db = (applicationContext as SoulTrackApp).database
+        CoroutineScope(Dispatchers.IO).launch {
+            db.sessionDao().deactivateAllSessions(System.currentTimeMillis())
+
+            val deepWorkCat = db.categoryDao().getIdByName("Deep Work")
+            val catId = deepWorkCat ?: db.categoryDao().getIdByName("Productive")
+            val catType = if (deepWorkCat != null) "PRODUCTIVE" else "PRODUCTIVE"
+
+            val session = SessionEntity(
+                title = title.ifBlank { "Pomodoro Focus" },
+                categoryId = catId,
+                type = catType,
+                startTime = System.currentTimeMillis(),
+                isActive = true,
+                source = "POMODORO",
+                timezoneId = java.time.ZoneId.systemDefault().id
+            )
+            val sessionId = db.sessionDao().insert(session)
+
+            val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
+            prefs.edit()
+                .putBoolean("is_running", true)
+                .putLong("start_time", System.currentTimeMillis())
+                .putLong("session_id", sessionId)
+                .putString("session_name", "Pomodoro Focus")
+                .putString("category_name", "Deep Work")
+                .putString("category_type", "PRODUCTIVE")
+                .apply()
+
+            val intent = Intent(this@PomodoroForegroundService, TimerForegroundService::class.java).apply {
+                putExtra(TimerForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
+                putExtra(TimerForegroundService.EXTRA_TITLE, title.ifBlank { "Pomodoro Focus" })
+                putExtra(TimerForegroundService.EXTRA_CATEGORY, "Deep Work")
+                putExtra(TimerForegroundService.EXTRA_CATEGORY_TYPE, "PRODUCTIVE")
+                putExtra(TimerForegroundService.EXTRA_IS_POMODORO, true)
+            }
+            withContext(Dispatchers.Main) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent)
+                } else {
+                    startService(intent)
+                }
+            }
+        }
+    }
+
+    private fun stopTrackingSession() {
+        val db = (applicationContext as SoulTrackApp).database
+        CoroutineScope(Dispatchers.IO).launch {
+            val now = System.currentTimeMillis()
+            db.sessionDao().stopActiveSession(now)
+        }
+
+        val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("is_running", false)
+            .putLong("session_id", -1L)
+            .apply()
+
+        stopService(Intent(this, TimerForegroundService::class.java))
     }
 
     private fun acquireWakeLock() {
@@ -325,6 +392,47 @@ class PomodoroForegroundService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_TRANSITION)
             .setContentTitle(title)
             .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .build()
+
+        notificationManager?.notify(TRANSITION_NOTIFICATION_ID, notification)
+    }
+
+    private fun showBreakQuoteNotification(title: String, text: String) {
+        val breakQuotes = listOf(
+            "Rest when you're weary. Refresh and renewal await.",
+            "A short rest fuels a powerful comeback.",
+            "Step back to leap forward.",
+            "The pause between notes makes the music.",
+            "Even the sun rests before rising again.",
+            "Breathe. You've earned this moment.",
+            "Stillness is not laziness \u2014 it's strategy.",
+            "Recharge now, conquer later.",
+            "Great things take breaks too.",
+            "Your mind processes miracles in silence."
+        )
+
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val quote = breakQuotes.random()
+        val notification = NotificationCompat.Builder(this, CHANNEL_TRANSITION)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("$quote\n\n$text")
+                    .setSummaryText(text)
+            )
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)

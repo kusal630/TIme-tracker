@@ -40,6 +40,8 @@ class TimerForegroundService : Service() {
     private var categoryType: String = ""
     private var sedentaryJob: Job? = null
     private var sedentaryReminderCount: Int = 0
+    private var isPomodoroSession: Boolean = false
+    private var wastedWarningJob: Job? = null
     private var notificationManager: NotificationManager? = null
     private var timerJob: Job? = null
 
@@ -53,6 +55,7 @@ class TimerForegroundService : Service() {
         const val EXTRA_TITLE = "title"
         const val EXTRA_CATEGORY = "category"
         const val EXTRA_CATEGORY_TYPE = "category_type"
+        const val EXTRA_IS_POMODORO = "is_pomodoro"
 
         fun getCategoryColor(type: String, isWaste: Boolean = false): Int {
             if (isWaste) return 0xFFF44336.toInt()
@@ -108,6 +111,7 @@ class TimerForegroundService : Service() {
         sessionTitle = intent?.getStringExtra(EXTRA_TITLE) ?: "Active Session"
         categoryName = intent?.getStringExtra(EXTRA_CATEGORY) ?: ""
         categoryType = intent?.getStringExtra(EXTRA_CATEGORY_TYPE) ?: ""
+        isPomodoroSession = intent?.getBooleanExtra(EXTRA_IS_POMODORO, false) ?: false
 
         val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
         prefs.edit()
@@ -124,7 +128,12 @@ class TimerForegroundService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         startNotificationUpdates()
-        scheduleSedentaryReminder()
+        if (!isPomodoroSession) {
+            scheduleSedentaryReminder()
+        }
+        if (categoryType == "WASTED") {
+            scheduleWastedWarning()
+        }
         TimerWidgetProvider.updateWidgets(this)
         return START_STICKY
     }
@@ -273,11 +282,55 @@ class TimerForegroundService : Service() {
         notificationManager?.notify(SEDENTARY_NOTIFICATION_ID, notification)
     }
 
+    private fun scheduleWastedWarning() {
+        wastedWarningJob?.cancel()
+        wastedWarningJob = scope.launch {
+            delay(5 * 60 * 1000L)
+            if (!isActive) return@launch
+            showWastedWarning()
+        }
+    }
+
+    private fun showWastedWarning() {
+        val warnings = listOf(
+            "Time is being wasted. You can be better than this!",
+            "Every minute counts. Switch to something meaningful!",
+            "This time won't come back. Choose wisely!",
+            "You're capable of so much more. Get back on track!",
+            "Don't let this moment slip. Do something that matters!",
+            "Your future self will thank you for stopping now.",
+            "Progress or regret \u2014 the choice is yours.",
+            "Small changes lead to big results. Start now!"
+        )
+
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_SEDENTARY)
+            .setContentTitle("Time Check")
+            .setContentText(warnings.random())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(warnings.random()))
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+
+        notificationManager?.notify(SEDENTARY_NOTIFICATION_ID + 10, notification)
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         timerJob?.cancel()
         sedentaryJob?.cancel()
+        wastedWarningJob?.cancel()
         val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
         prefs.edit().putBoolean("is_running", false).apply()
         notificationManager?.cancel(NOTIFICATION_ID)

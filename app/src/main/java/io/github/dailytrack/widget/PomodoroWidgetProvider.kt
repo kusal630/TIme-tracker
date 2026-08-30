@@ -74,9 +74,12 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
 
                 val serviceIntent = Intent(context, PomodoroForegroundService::class.java).apply {
                     putExtra(PomodoroForegroundService.EXTRA_START_TIME, startTime)
-                    putExtra(PomodoroForegroundService.EXTRA_DURATION, duration)
+                    putExtra(PomodoroForegroundService.EXTRA_WORK_DURATION, duration)
+                    putExtra(PomodoroForegroundService.EXTRA_BREAK_DURATION, 5)
+                    putExtra(PomodoroForegroundService.EXTRA_LONG_BREAK_DURATION, 15)
                     putExtra(PomodoroForegroundService.EXTRA_TODO_TITLE, "Quick Focus")
                     putExtra(PomodoroForegroundService.EXTRA_IS_BREAK, false)
+                    putExtra(PomodoroForegroundService.EXTRA_SESSION_NUMBER, 0)
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(serviceIntent)

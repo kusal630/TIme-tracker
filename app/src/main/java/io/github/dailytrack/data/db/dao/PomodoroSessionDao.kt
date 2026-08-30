@@ -53,6 +53,9 @@ interface PomodoroSessionDao {
     @Query("UPDATE pomodoro_sessions SET endTime = :endTime, isCompleted = :isCompleted WHERE id = :id")
     suspend fun completePomodoro(id: Long, endTime: Long, isCompleted: Boolean = true)
 
+    @Query("UPDATE pomodoro_sessions SET endTime = :endTime, isCompleted = 1 WHERE isCompleted = 0")
+    suspend fun completeActiveSession(endTime: Long = System.currentTimeMillis())
+
     @Query("SELECT SUM(durationMinutes) FROM pomodoro_sessions WHERE type = 'WORK' AND isCompleted = 1 AND startTime >= :start AND startTime < :end")
     suspend fun getTotalWorkMinutesInRange(start: Long, end: Long): Int?
 

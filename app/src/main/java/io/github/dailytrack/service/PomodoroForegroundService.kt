@@ -1,20 +1,3 @@
-/*
- * Copyright 2024 Soul Track Contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
 package io.github.dailytrack.service
 
 import android.app.Notification
@@ -22,47 +5,65 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.NotificationManager.Policy
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
+import android.media.AudioManager
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import io.github.dailytrack.MainActivity
+import io.github.dailytrack.SoulTrackApp
 import io.github.dailytrack.widget.PomodoroWidgetProvider
 import kotlinx.coroutines.*
 
 class PomodoroForegroundService : Service() {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private var startTime: Long = 0L
-    private var durationMinutes: Int = 25
-    private var todoTitle: String = ""
-    private var isBreak: Boolean = false
-    private var notificationManager: NotificationManager? = null
     private var timerJob: Job? = null
-    private var workColor: Int = 0xFFE94560.toInt()
     private var sedentaryJob: Job? = null
-    private var breakColor: Int = 0xFFFFAB40.toInt()
+    private var notificationManager: NotificationManager? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    private var workDurationMinutes: Int = 25
+    private var breakDurationMinutes: Int = 5
+    private var longBreakDurationMinutes: Int = 15
+    private var todoTitle: String = ""
+    private var currentSessionNumber: Int = 0
+    private var isBreak: Boolean = false
+    private var isLongBreak: Boolean = false
+    private var startTime: Long = 0L
+    private var workColor: Int = 0xFFE94560.toInt()
+    private var dndWasEnabled: Boolean = false
 
     companion object {
         const val CHANNEL_WORK = "soultrack_work"
         const val CHANNEL_BREAK = "soultrack_break"
         const val CHANNEL_SEDENTARY = "soultrack_sedentary"
+        const val CHANNEL_TRANSITION = "soultrack_transition"
         const val NOTIFICATION_ID = 1002
         const val SEDENTARY_NOTIFICATION_ID = 1003
+        const val TRANSITION_NOTIFICATION_ID = 1005
+
         const val ACTION_STOP = "io.github.dailytrack.STOP_POMODORO"
-        const val ACTION_COMPLETE = "io.github.dailytrack.COMPLETE_POMODORO"
         const val ACTION_COMPLETE_WORK = "io.github.dailytrack.COMPLETE_POMODORO_WORK"
         const val ACTION_COMPLETE_BREAK = "io.github.dailytrack.COMPLETE_POMODORO_BREAK"
+        const val ACTION_START_NEW = "io.github.dailytrack.START_NEW_POMODORO"
+
         const val EXTRA_START_TIME = "start_time"
-        const val EXTRA_DURATION = "duration"
+        const val EXTRA_WORK_DURATION = "work_duration"
+        const val EXTRA_BREAK_DURATION = "break_duration"
         const val EXTRA_TODO_TITLE = "todo_title"
-        const val EXTRA_IS_BREAK = "is_break"
         const val EXTRA_WORK_COLOR = "work_color"
+        const val EXTRA_SESSION_NUMBER = "session_number"
+        const val EXTRA_IS_BREAK = "is_break"
+        const val EXTRA_IS_LONG_BREAK = "is_long_break"
+        const val EXTRA_LONG_BREAK_DURATION = "long_break_duration"
     }
 
     override fun onCreate() {
@@ -74,77 +75,57 @@ class PomodoroForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                timerJob?.cancel()
-                val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
-                prefs.edit().putBoolean("is_running", false).apply()
-                val stopBroadcast = Intent(ACTION_STOP)
-                stopBroadcast.setPackage(packageName)
-                sendBroadcast(stopBroadcast)
-                notificationManager?.cancel(NOTIFICATION_ID)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                PomodoroWidgetProvider.updateWidgets(this)
-                return START_NOT_STICKY
-            }
-            ACTION_COMPLETE -> {
-                timerJob?.cancel()
-                playCompletionSound()
-                val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
-                prefs.edit().putBoolean("is_running", false).apply()
-                val completeBroadcast = Intent(ACTION_COMPLETE)
-                completeBroadcast.setPackage(packageName)
-                sendBroadcast(completeBroadcast)
-                notificationManager?.cancel(NOTIFICATION_ID)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                PomodoroWidgetProvider.updateWidgets(this)
+                stopAll()
                 return START_NOT_STICKY
             }
             ACTION_COMPLETE_WORK -> {
-                timerJob?.cancel()
-                playCompletionSound()
-                val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
-                prefs.edit().putBoolean("is_running", false).apply()
-                val workBroadcast = Intent(ACTION_COMPLETE_WORK)
-                workBroadcast.setPackage(packageName)
-                sendBroadcast(workBroadcast)
-                notificationManager?.cancel(NOTIFICATION_ID)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                PomodoroWidgetProvider.updateWidgets(this)
-                return START_NOT_STICKY
+                onWorkSessionComplete()
+                return START_STICKY
             }
             ACTION_COMPLETE_BREAK -> {
-                timerJob?.cancel()
-                val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
-                prefs.edit().putBoolean("is_running", false).apply()
-                val breakBroadcast = Intent(ACTION_COMPLETE_BREAK)
-                breakBroadcast.setPackage(packageName)
-                sendBroadcast(breakBroadcast)
-                notificationManager?.cancel(NOTIFICATION_ID)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                PomodoroWidgetProvider.updateWidgets(this)
-                return START_NOT_STICKY
+                onBreakComplete()
+                return START_STICKY
+            }
+            ACTION_START_NEW -> {
+                currentSessionNumber = 0
+                isBreak = false
+                isLongBreak = false
+                startWorkSession(
+                    workDuration = intent.getIntExtra(EXTRA_WORK_DURATION, workDurationMinutes),
+                    title = intent.getStringExtra(EXTRA_TODO_TITLE) ?: todoTitle
+                )
+                return START_STICKY
             }
         }
 
-        startTime = intent?.getLongExtra(EXTRA_START_TIME, System.currentTimeMillis())
-            ?: System.currentTimeMillis()
-        durationMinutes = intent?.getIntExtra(EXTRA_DURATION, 25) ?: 25
+        workDurationMinutes = intent?.getIntExtra(EXTRA_WORK_DURATION, 25) ?: 25
+        breakDurationMinutes = intent?.getIntExtra(EXTRA_BREAK_DURATION, 5) ?: 5
+        longBreakDurationMinutes = intent?.getIntExtra(EXTRA_LONG_BREAK_DURATION, 15) ?: 15
         todoTitle = intent?.getStringExtra(EXTRA_TODO_TITLE) ?: ""
-        isBreak = intent?.getBooleanExtra(EXTRA_IS_BREAK, false) ?: false
         workColor = intent?.getIntExtra(EXTRA_WORK_COLOR, 0xFFE94560.toInt()) ?: 0xFFE94560.toInt()
+        currentSessionNumber = intent?.getIntExtra(EXTRA_SESSION_NUMBER, 0) ?: 0
+        isBreak = intent?.getBooleanExtra(EXTRA_IS_BREAK, false) ?: false
+        isLongBreak = intent?.getBooleanExtra(EXTRA_IS_LONG_BREAK, false) ?: false
 
-        val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean("is_running", true)
-            .putLong("start_time", startTime)
-            .putInt("duration", durationMinutes)
-            .putBoolean("is_break", isBreak)
-            .putInt("work_color", workColor)
-            .apply()
+        startWorkSession(workDurationMinutes, todoTitle)
+        return START_STICKY
+    }
 
+    private fun startWorkSession(workDuration: Int, title: String) {
+        timerJob?.cancel()
+        sedentaryJob?.cancel()
+        isBreak = false
+        isLongBreak = false
+        workDurationMinutes = workDuration
+        todoTitle = title
+        startTime = System.currentTimeMillis()
+
+        enableDnd()
+        acquireWakeLock()
+        playTransitionSound(isWork = true)
+        showTransitionNotification("Focus session $currentSessionNumber started", "Stay focused for $workDuration minutes")
+
+        updatePrefs()
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
@@ -152,11 +133,206 @@ class PomodoroForegroundService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         startNotificationUpdates()
-        if (isBreak) {
-            scheduleSedentaryReminder()
-        }
         PomodoroWidgetProvider.updateWidgets(this)
-        return START_STICKY
+    }
+
+    private fun startBreakSession(durationMinutes: Int, isLong: Boolean) {
+        timerJob?.cancel()
+        sedentaryJob?.cancel()
+        isBreak = true
+        isLongBreak = isLong
+        breakDurationMinutes = durationMinutes
+        startTime = System.currentTimeMillis()
+
+        disableDnd()
+        acquireWakeLock()
+        playTransitionSound(isWork = false)
+        val breakLabel = if (isLong) "Long break" else "Short break"
+        showTransitionNotification("$breakLabel started", "Relax for $durationMinutes minutes")
+
+        updatePrefs()
+        val breakNotification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, breakNotification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIFICATION_ID, breakNotification)
+        }
+        startNotificationUpdates()
+        scheduleSedentaryReminder()
+        PomodoroWidgetProvider.updateWidgets(this)
+    }
+
+    private fun onWorkSessionComplete() {
+        timerJob?.cancel()
+        sedentaryJob?.cancel()
+        playCompletionVibration()
+
+        val db = (applicationContext as SoulTrackApp).database
+        CoroutineScope(Dispatchers.IO).launch {
+            val now = System.currentTimeMillis()
+            db.pomodoroSessionDao().completeActiveSession(now)
+        }
+
+        currentSessionNumber++
+        showTransitionNotification(
+            "Session $currentSessionNumber completed!",
+            "Great work! Time for a break."
+        )
+
+        scope.launch {
+            delay(2000L)
+            if (currentSessionNumber % 4 == 0) {
+                startBreakSession(longBreakDurationMinutes, isLong = true)
+            } else {
+                startBreakSession(breakDurationMinutes, isLong = false)
+            }
+        }
+    }
+
+    private fun onBreakComplete() {
+        timerJob?.cancel()
+        sedentaryJob?.cancel()
+        playCompletionVibration()
+
+        val db = (applicationContext as SoulTrackApp).database
+        CoroutineScope(Dispatchers.IO).launch {
+            val now = System.currentTimeMillis()
+            db.pomodoroSessionDao().completeActiveSession(now)
+        }
+
+        showTransitionNotification(
+            "Break ended",
+            "Ready for the next focus session?"
+        )
+
+        scope.launch {
+            delay(2000L)
+            startWorkSession(workDurationMinutes, todoTitle)
+        }
+    }
+
+    private fun stopAll() {
+        timerJob?.cancel()
+        sedentaryJob?.cancel()
+        disableDnd()
+        releaseWakeLock()
+        notificationManager?.cancel(NOTIFICATION_ID)
+        notificationManager?.cancel(SEDENTARY_NOTIFICATION_ID)
+        notificationManager?.cancel(TRANSITION_NOTIFICATION_ID)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        PomodoroWidgetProvider.updateWidgets(this)
+    }
+
+    private fun acquireWakeLock() {
+        releaseWakeLock()
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "soultrack:pomodoro_transition"
+        ).apply {
+            acquire(10_000L)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) it.release()
+        }
+        wakeLock = null
+    }
+
+    private fun enableDnd() {
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        if (!nm.isNotificationPolicyAccessGranted) return
+
+        dndWasEnabled = nm.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
+        nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY)
+    }
+
+    private fun disableDnd() {
+        if (!dndWasEnabled) return
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        if (!nm.isNotificationPolicyAccessGranted) return
+        nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+        dndWasEnabled = false
+    }
+
+    private fun playTransitionSound(isWork: Boolean) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(VibratorManager::class.java)
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Vibrator::class.java) as Vibrator
+        }
+
+        val pattern = if (isWork) {
+            longArrayOf(0, 300, 100, 300, 100, 500)
+        } else {
+            longArrayOf(0, 200, 100, 200, 100, 300)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(pattern, -1)
+        }
+
+        val sound = if (isWork) {
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        } else {
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        }
+
+        try {
+            val ringtone = RingtoneManager.getRingtone(this, sound)
+            ringtone?.play()
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try { ringtone?.stop() } catch (_: Exception) {}
+            }, 3000)
+        } catch (_: Exception) {}
+    }
+
+    private fun playCompletionVibration() {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(VibratorManager::class.java)
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Vibrator::class.java) as Vibrator
+        }
+
+        val pattern = longArrayOf(0, 400, 100, 400, 100, 400, 100, 600)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(pattern, -1)
+        }
+    }
+
+    private fun showTransitionNotification(title: String, text: String) {
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_TRANSITION)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .build()
+
+        notificationManager?.notify(TRANSITION_NOTIFICATION_ID, notification)
     }
 
     private fun startNotificationUpdates() {
@@ -194,94 +370,69 @@ class PomodoroForegroundService : Service() {
         )
 
         val elapsed = System.currentTimeMillis() - startTime
-        val totalMillis = durationMinutes * 60 * 1000L
+        val totalMillis = (if (isBreak) breakDurationMinutes else workDurationMinutes) * 60 * 1000L
         val remaining = (totalMillis - elapsed).coerceAtLeast(0)
         val minutes = remaining / 60000
         val seconds = (remaining % 60000) / 1000
         val timeStr = String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
 
         val channel = if (isBreak) CHANNEL_BREAK else CHANNEL_WORK
-        val title = if (isBreak) "Break Time" else "Focus Time"
-        val subtitle = if (todoTitle.isNotBlank()) todoTitle else "Stay focused!"
+        val title = when {
+            isBreak && isLongBreak -> "Long Break"
+            isBreak -> "Short Break"
+            else -> "Focus Session $currentSessionNumber"
+        }
+        val subtitle = when {
+            isBreak -> "Relax before next session"
+            todoTitle.isNotBlank() -> todoTitle
+            else -> "Stay focused!"
+        }
 
-        val progress = (elapsed.toFloat() / totalMillis.toFloat()).coerceIn(0f, 1f)
-
-        val notificationColor = if (isBreak) {
-            breakColor
+        val sessionLabel = if (isBreak) {
+            "Break (${currentSessionNumber}/4)"
         } else {
-            val fromR = Color.red(workColor).toFloat()
-            val fromG = Color.green(workColor).toFloat()
-            val fromB = Color.blue(workColor).toFloat()
-            val toR = Color.red(breakColor).toFloat()
-            val toG = Color.green(breakColor).toFloat()
-            val toB = Color.blue(breakColor).toFloat()
-            val r = (fromR + (toR - fromR) * progress).toInt()
-            val g = (fromG + (toG - fromG) * progress).toInt()
-            val b = (fromB + (toB - fromB) * progress).toInt()
-            Color.rgb(r.coerceIn(0, 255), g.coerceIn(0, 255), b.coerceIn(0, 255))
+            "Session ${currentSessionNumber + 1}/4"
         }
 
         return NotificationCompat.Builder(this, channel)
             .setContentTitle("$title: $timeStr")
             .setContentText(subtitle)
+            .setSubText(sessionLabel)
             .setSmallIcon(if (isBreak) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setUsesChronometer(false)
             .setShowWhen(false)
-            .setColor(notificationColor)
+            .setColor(if (isBreak) 0xFFFFAB40.toInt() else workColor)
             .setColorized(true)
-            .addAction(android.R.drawable.ic_media_pause, if (isBreak) "Skip Break" else "Complete", completeIntent)
+            .addAction(
+                android.R.drawable.ic_media_pause,
+                if (isBreak) "Skip Break" else "Complete",
+                completeIntent
+            )
             .addAction(android.R.drawable.ic_delete, "Stop", stopIntent)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
-    private fun playCompletionSound() {
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = getSystemService(VibratorManager::class.java)
-            vibratorManager.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            getSystemService(Vibrator::class.java) as Vibrator
-        }
-
-        val pattern = if (isBreak) {
-            longArrayOf(0, 200, 100, 200, 100, 400)
-        } else {
-            longArrayOf(0, 300, 150, 300, 150, 300, 150, 600)
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(pattern, -1)
-        }
-
-        val sound = if (isBreak) {
-            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        } else {
-            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        }
-
-        val ringtone = RingtoneManager.getRingtone(this, sound)
-        ringtone?.play()
-
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            try {
-                ringtone?.stop()
-            } catch (_: Exception) {}
-        }, 3000)
+    private fun updatePrefs() {
+        val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("is_running", true)
+            .putLong("start_time", startTime)
+            .putInt("duration", if (isBreak) breakDurationMinutes else workDurationMinutes)
+            .putBoolean("is_break", isBreak)
+            .putInt("work_color", workColor)
+            .putInt("session_number", currentSessionNumber)
+            .putBoolean("is_long_break", isLongBreak)
+            .apply()
     }
 
     private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val workChannel = NotificationChannel(
-                CHANNEL_WORK,
-                "Focus Sessions",
-                NotificationManager.IMPORTANCE_LOW
+                CHANNEL_WORK, "Focus Sessions", NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Shows active focus session timer"
                 setShowBadge(false)
@@ -290,9 +441,7 @@ class PomodoroForegroundService : Service() {
             }
 
             val breakChannel = NotificationChannel(
-                CHANNEL_BREAK,
-                "Break Timer",
-                NotificationManager.IMPORTANCE_LOW
+                CHANNEL_BREAK, "Break Timer", NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Shows active break timer"
                 setShowBadge(false)
@@ -301,9 +450,7 @@ class PomodoroForegroundService : Service() {
             }
 
             val sedentaryChannel = NotificationChannel(
-                CHANNEL_SEDENTARY,
-                "Movement Reminders",
-                NotificationManager.IMPORTANCE_DEFAULT
+                CHANNEL_SEDENTARY, "Movement Reminders", NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Reminds you to stand and stretch during breaks"
                 setShowBadge(true)
@@ -312,10 +459,21 @@ class PomodoroForegroundService : Service() {
                 enableVibration(true)
             }
 
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(workChannel)
-            notificationManager.createNotificationChannel(breakChannel)
-            notificationManager.createNotificationChannel(sedentaryChannel)
+            val transitionChannel = NotificationChannel(
+                CHANNEL_TRANSITION, "Session Transitions", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifies when sessions start or end"
+                setShowBadge(true)
+                lightColor = 0xFFE94560.toInt()
+                enableLights(true)
+                enableVibration(true)
+            }
+
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(workChannel)
+            nm.createNotificationChannel(breakChannel)
+            nm.createNotificationChannel(sedentaryChannel)
+            nm.createNotificationChannel(transitionChannel)
         }
     }
 
@@ -338,11 +496,8 @@ class PomodoroForegroundService : Service() {
             "Touch your toes - hold for 15 seconds",
             "Do some calf raises to activate your legs",
             "Open a window and take 5 deep breaths",
-            "Shake out your hands and wrists",
-            "Stretch your back: arch and release",
-            "Walk up and down a flight of stairs"
+            "Shake out your hands and wrists"
         )
-        val tip = tips.random()
 
         val pendingIntent = PendingIntent.getActivity(
             this, 0,
@@ -352,19 +507,11 @@ class PomodoroForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val dismissIntent = PendingIntent.getService(
-            this, 4,
-            Intent(this, PomodoroForegroundService::class.java).apply { action = ACTION_STOP },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
         val notification = NotificationCompat.Builder(this, CHANNEL_SEDENTARY)
             .setContentTitle("Time to Move!")
-            .setContentText(tip)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(tip))
+            .setContentText(tips.random())
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentIntent(pendingIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss", dismissIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -378,10 +525,13 @@ class PomodoroForegroundService : Service() {
     override fun onDestroy() {
         timerJob?.cancel()
         sedentaryJob?.cancel()
+        disableDnd()
+        releaseWakeLock()
         val prefs = getSharedPreferences("pom_widget_prefs", MODE_PRIVATE)
         prefs.edit().putBoolean("is_running", false).apply()
         notificationManager?.cancel(NOTIFICATION_ID)
         notificationManager?.cancel(SEDENTARY_NOTIFICATION_ID)
+        notificationManager?.cancel(TRANSITION_NOTIFICATION_ID)
         scope.cancel()
         super.onDestroy()
     }

@@ -169,19 +169,6 @@ fun PomodoroScreen(
                     quoteAuthor = quote.author
                     quoteColor = quoteColors[quoteIndex % quoteColors.size]
                     quoteIndex++
-                    
-                    if (isBreak) {
-                        viewModel.startPomodoro(
-                            if (selectedTodoId > 0) selectedTodoId else null,
-                            if (selectedCategoryId > 0) selectedCategoryId else null,
-                            selectedWorkDuration
-                        )
-                        isBreak = false
-                    } else {
-                        viewModel.completePomodoro()
-                        viewModel.startPomodoroBreak(selectedBreakDuration)
-                        isBreak = true
-                    }
                     elapsedSeconds = 0
                 }
             }
@@ -548,10 +535,13 @@ fun PomodoroScreen(
                                 )
                                 val intent = Intent(context, PomodoroForegroundService::class.java).apply {
                                     putExtra(PomodoroForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
-                                    putExtra(PomodoroForegroundService.EXTRA_DURATION, selectedWorkDuration)
+                                    putExtra(PomodoroForegroundService.EXTRA_WORK_DURATION, selectedWorkDuration)
+                                    putExtra(PomodoroForegroundService.EXTRA_BREAK_DURATION, selectedBreakDuration)
+                                    putExtra(PomodoroForegroundService.EXTRA_LONG_BREAK_DURATION, 15)
                                     putExtra(PomodoroForegroundService.EXTRA_TODO_TITLE, todoTitle)
                                     putExtra(PomodoroForegroundService.EXTRA_IS_BREAK, false)
                                     putExtra(PomodoroForegroundService.EXTRA_WORK_COLOR, colorInt)
+                                    putExtra(PomodoroForegroundService.EXTRA_SESSION_NUMBER, 0)
                                 }
                                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                                     context.startForegroundService(intent)
@@ -580,8 +570,7 @@ fun PomodoroScreen(
                         Button(
                             onClick = {
                                 val intent = Intent(context, PomodoroForegroundService::class.java).apply {
-                                    action = if (isBreak) PomodoroForegroundService.ACTION_COMPLETE_BREAK
-                                    else PomodoroForegroundService.ACTION_COMPLETE_WORK
+                                    action = PomodoroForegroundService.ACTION_STOP
                                 }
                                 context.startService(intent)
                                 viewModel.completePomodoro()
@@ -751,10 +740,13 @@ fun PomodoroScreen(
                     )
                     val intent = Intent(context, PomodoroForegroundService::class.java).apply {
                         putExtra(PomodoroForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
-                        putExtra(PomodoroForegroundService.EXTRA_DURATION, pendingWorkDuration)
+                        putExtra(PomodoroForegroundService.EXTRA_WORK_DURATION, pendingWorkDuration)
+                        putExtra(PomodoroForegroundService.EXTRA_BREAK_DURATION, selectedBreakDuration)
+                        putExtra(PomodoroForegroundService.EXTRA_LONG_BREAK_DURATION, 15)
                         putExtra(PomodoroForegroundService.EXTRA_TODO_TITLE, todoTitle)
                         putExtra(PomodoroForegroundService.EXTRA_IS_BREAK, false)
                         putExtra(PomodoroForegroundService.EXTRA_WORK_COLOR, colorInt)
+                        putExtra(PomodoroForegroundService.EXTRA_SESSION_NUMBER, 0)
                     }
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                         context.startForegroundService(intent)

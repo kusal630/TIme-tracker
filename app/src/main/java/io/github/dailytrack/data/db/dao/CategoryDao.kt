@@ -49,4 +49,7 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun count(): Int
+
+    @Query("SELECT id FROM categories WHERE name = :name LIMIT 1")
+    suspend fun getIdByName(name: String): Long?
 }

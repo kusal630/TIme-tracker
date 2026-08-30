@@ -287,6 +287,41 @@ fun TimerScreen(
                                     }
                                 }
                             }
+
+                            if (categorySearchQuery.isNotBlank()) {
+                                val customName = categorySearchQuery.trim()
+                                val existsAlready = categories.values.any {
+                                    it.name.equals(customName, ignoreCase = true)
+                                }
+                                if (!existsAlready) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                viewModel.addCustomCategory(customName) { newId ->
+                                                    selectedCategoryId = newId
+                                                    categorySearchQuery = ""
+                                                }
+                                            }
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Add,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            text = "Add \"$customName\" as new category",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
                     }
                 }
                 

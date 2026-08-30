@@ -1,22 +1,6 @@
-/*
- * Copyright 2024 Soul Track Contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
 package io.github.dailytrack.widget
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
@@ -85,44 +69,56 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     if (!hasPermission) return
                 }
 
-                val startIntent = Intent(context, TimerForegroundService::class.java).apply {
-                    putExtra(TimerForegroundService.EXTRA_START_TIME, System.currentTimeMillis())
-                    putExtra(TimerForegroundService.EXTRA_TITLE, "Quick Session")
-                    putExtra(TimerForegroundService.EXTRA_CATEGORY, catName)
-                    putExtra(TimerForegroundService.EXTRA_CATEGORY_TYPE, catType)
+                val now = System.currentTimeMillis()
+                val sessionType = when (catType) {
+                    "LEARNING" -> "LEARNING"
+                    "EXERCISE" -> "EXERCISE"
+                    "SOCIAL" -> "SOCIAL"
+                    "WASTED" -> "WASTED"
+                    else -> "ACTIVITY"
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(startIntent)
-                } else {
-                    context.startService(startIntent)
-                }
-
-                prefs.edit()
-                    .putBoolean("is_running", true)
-                    .putLong("start_time", System.currentTimeMillis())
-                    .putString("session_name", "Quick Session")
-                    .putString("category_name", catName)
-                    .putString("category_type", catType)
-                    .apply()
 
                 val db = (context.applicationContext as SoulTrackApp).database
                 CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+                    db.sessionDao().deactivateAllSessions(now)
+
+                    val categoryId = db.categoryDao().getIdByName(catName)
+
                     val session = SessionEntity(
                         title = "Quick Session",
-                        categoryId = null,
-                        type = when (catType) {
-                            "LEARNING" -> "LEARNING"
-                            "EXERCISE" -> "EXERCISE"
-                            "SOCIAL" -> "SOCIAL"
-                            "WASTED" -> "WASTED"
-                            else -> "ACTIVITY"
-                        },
-                        startTime = System.currentTimeMillis(),
+                        categoryId = categoryId,
+                        type = sessionType,
+                        startTime = now,
                         isActive = true,
                         source = "WIDGET",
                         timezoneId = java.time.ZoneId.systemDefault().id
                     )
-                    db.sessionDao().insert(session)
+                    val sessionId = db.sessionDao().insert(session)
+
+                    prefs.edit()
+                        .putBoolean("is_running", true)
+                        .putLong("start_time", now)
+                        .putLong("session_id", sessionId)
+                        .putString("session_name", "Quick Session")
+                        .putString("category_name", catName)
+                        .putString("category_type", catType)
+                        .apply()
+
+                    val startIntent = Intent(context, TimerForegroundService::class.java).apply {
+                        putExtra(TimerForegroundService.EXTRA_START_TIME, now)
+                        putExtra(TimerForegroundService.EXTRA_TITLE, "Quick Session")
+                        putExtra(TimerForegroundService.EXTRA_CATEGORY, catName)
+                        putExtra(TimerForegroundService.EXTRA_CATEGORY_TYPE, catType)
+                    }
+                    withContext(Dispatchers.Main) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(startIntent)
+                        } else {
+                            context.startService(startIntent)
+                        }
+                    }
+
+                    updateAllWidgets(context)
                 }
 
                 CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
@@ -137,11 +133,13 @@ class TimerWidgetProvider : AppWidgetProvider() {
                         updateAllWidgets(context)
                     }
                 }
-
-                updateAllWidgets(context)
             }
 
             ACTION_STOP -> {
+                val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+                val sessionId = prefs.getLong("session_id", -1L)
+                val now = System.currentTimeMillis()
+
                 val stopIntent = Intent(context, TimerForegroundService::class.java).apply {
                     action = TimerForegroundService.ACTION_STOP
                 }
@@ -153,11 +151,22 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
                 val db = (context.applicationContext as SoulTrackApp).database
                 CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
-                    db.sessionDao().deactivateAllSessions()
+                    if (sessionId > 0) {
+                        val session = db.sessionDao().getSessionById(sessionId)
+                        if (session != null && session.isActive) {
+                            db.sessionDao().update(
+                                session.copy(endTime = now, isActive = false, updatedAt = now)
+                            )
+                        }
+                    } else {
+                        db.sessionDao().stopActiveSession(now)
+                    }
                 }
 
-                val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
-                prefs.edit().putBoolean("is_running", false).apply()
+                prefs.edit()
+                    .putBoolean("is_running", false)
+                    .putLong("session_id", -1L)
+                    .apply()
 
                 updateAllWidgets(context)
             }
@@ -167,6 +176,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 prefs.edit()
                     .putBoolean("is_running", false)
                     .putLong("start_time", 0L)
+                    .putLong("session_id", -1L)
                     .putString("session_name", "Ready to start")
                     .putString("category_name", "")
                     .putString("category_type", "")
@@ -207,11 +217,16 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
     private fun updateAllWidgets(context: Context) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        val componentName = ComponentName(context, TimerWidgetProvider::class.java)
-        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-        for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+        val timerIds = appWidgetManager.getAppWidgetIds(
+            ComponentName(context, TimerWidgetProvider::class.java)
+        )
+
+        for (id in timerIds) {
+            updateAppWidget(context, appWidgetManager, id)
         }
+
+        PomodoroWidgetProvider.updateWidgets(context)
+        QuoteWidgetProvider.updateWidgets(context)
     }
 
     private fun updateAppWidget(
@@ -223,106 +238,83 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
         val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
         val isRunning = prefs.getBoolean("is_running", false)
-        val startTime = prefs.getLong("start_time", 0L)
         val sessionName = prefs.getString("session_name", "Ready to start") ?: "Ready to start"
         val categoryName = prefs.getString("category_name", "") ?: ""
+        val categoryType = prefs.getString("category_type", "") ?: ""
+        val startTime = prefs.getLong("start_time", 0L)
         val categoryIndex = prefs.getInt("category_index", 0)
-        val quoteText = prefs.getString("widget_quote", "") ?: ""
+        val quote = prefs.getString("widget_quote", "") ?: ""
         val quoteAuthor = prefs.getString("widget_quote_author", "") ?: ""
 
-        views.setTextViewText(R.id.widget_session_name, sessionName)
-        views.setTextViewText(R.id.widget_category, widgetCategories[categoryIndex].first)
+        val (catName, _) = widgetCategories[categoryIndex]
 
-        if (quoteText.isNotBlank()) {
-            views.setTextViewText(R.id.widget_quote, "\"$quoteText\"")
-            views.setTextViewText(R.id.widget_quote_author, "— $quoteAuthor")
+        views.setTextViewText(R.id.widget_session_name, sessionName)
+
+        if (isRunning && categoryName.isNotBlank()) {
+            views.setTextViewText(R.id.widget_category, categoryName)
+        } else {
+            views.setTextViewText(R.id.widget_category, catName)
+        }
+
+        if (isRunning && startTime > 0) {
+            val elapsed = (System.currentTimeMillis() - startTime) / 1000
+            val h = elapsed / 3600
+            val m = (elapsed % 3600) / 60
+            val s = elapsed % 60
+            views.setTextViewText(R.id.widget_timer, String.format(java.util.Locale.US, "%02d:%02d:%02d", h, m, s))
+        } else {
+            views.setTextViewText(R.id.widget_timer, "00:00:00")
+        }
+
+        if (quote.isNotBlank()) {
             views.setViewVisibility(R.id.widget_quote, android.view.View.VISIBLE)
-            views.setViewVisibility(R.id.widget_quote_author, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.widget_quote, "\u201C$quote\u201D")
+            if (quoteAuthor.isNotBlank()) {
+                views.setViewVisibility(R.id.widget_quote_author, android.view.View.VISIBLE)
+                views.setTextViewText(R.id.widget_quote_author, "\u2014 $quoteAuthor")
+            } else {
+                views.setViewVisibility(R.id.widget_quote_author, android.view.View.GONE)
+            }
         } else {
             views.setViewVisibility(R.id.widget_quote, android.view.View.GONE)
             views.setViewVisibility(R.id.widget_quote_author, android.view.View.GONE)
         }
 
-        if (isRunning && startTime > 0) {
-            val elapsed = System.currentTimeMillis() - startTime
-            val hours = elapsed / 3600000
-            val minutes = (elapsed % 3600000) / 60000
-            val seconds = (elapsed % 60000) / 1000
-            val timeStr = String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
-
-            views.setTextViewText(R.id.widget_timer, timeStr)
+        if (isRunning) {
             views.setViewVisibility(R.id.widget_btn_start, android.view.View.GONE)
             views.setViewVisibility(R.id.widget_btn_stop, android.view.View.VISIBLE)
             views.setViewVisibility(R.id.widget_btn_reset, android.view.View.VISIBLE)
-            views.setViewVisibility(R.id.widget_category, android.view.View.GONE)
         } else {
-            views.setTextViewText(R.id.widget_timer, "00:00:00")
             views.setViewVisibility(R.id.widget_btn_start, android.view.View.VISIBLE)
             views.setViewVisibility(R.id.widget_btn_stop, android.view.View.GONE)
             views.setViewVisibility(R.id.widget_btn_reset, android.view.View.GONE)
-            views.setViewVisibility(R.id.widget_category, android.view.View.VISIBLE)
         }
 
-        val categoryClickIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-            action = ACTION_CYCLE_CATEGORY
-            component = ComponentName(context, TimerWidgetProvider::class.java)
-        }
-        val categoryPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 10, categoryClickIntent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.widget_category, categoryPendingIntent)
-
-        val quoteClickIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-            action = ACTION_NEXT_QUOTE
-            component = ComponentName(context, TimerWidgetProvider::class.java)
-        }
-        val quotePendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 11, quoteClickIntent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.widget_quote, quotePendingIntent)
-
-        val startIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-            action = ACTION_START
-            component = ComponentName(context, TimerWidgetProvider::class.java)
-        }
-        val startPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 12, startIntent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
+        val startPendingIntent = buildButtonPendingIntent(context, ACTION_START, appWidgetId)
         views.setOnClickPendingIntent(R.id.widget_btn_start, startPendingIntent)
+        views.setOnClickPendingIntent(R.id.widget_title, startPendingIntent)
 
-        val stopIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-            action = ACTION_STOP
-            component = ComponentName(context, TimerWidgetProvider::class.java)
-        }
-        val stopPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 13, stopIntent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
+        val stopPendingIntent = buildButtonPendingIntent(context, ACTION_STOP, appWidgetId)
         views.setOnClickPendingIntent(R.id.widget_btn_stop, stopPendingIntent)
 
-        val resetIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-            action = ACTION_RESET
-            component = ComponentName(context, TimerWidgetProvider::class.java)
-        }
-        val resetPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 14, resetIntent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
+        val resetPendingIntent = buildButtonPendingIntent(context, ACTION_RESET, appWidgetId)
         views.setOnClickPendingIntent(R.id.widget_btn_reset, resetPendingIntent)
 
-        val rootClickIntent = Intent(context, TimerWidgetProvider::class.java).apply {
-            action = ACTION_UPDATE
-            component = ComponentName(context, TimerWidgetProvider::class.java)
-        }
-        val rootPendingIntent = android.app.PendingIntent.getBroadcast(
-            context, 20, rootClickIntent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.widget_root, rootPendingIntent)
+        val cyclePendingIntent = buildButtonPendingIntent(context, ACTION_CYCLE_CATEGORY, appWidgetId)
+        views.setOnClickPendingIntent(R.id.widget_category, cyclePendingIntent)
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
+
+    private fun buildButtonPendingIntent(context: Context, action: String, appWidgetId: Int) =
+        PendingIntent.getBroadcast(
+            context,
+            appWidgetId,
+            Intent(context, TimerWidgetProvider::class.java).apply {
+                this.action = action
+                component = ComponentName(context, TimerWidgetProvider::class.java)
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 }

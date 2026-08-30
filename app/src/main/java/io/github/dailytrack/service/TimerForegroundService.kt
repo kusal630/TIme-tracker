@@ -92,11 +92,6 @@ class TimerForegroundService : Service() {
             ACTION_STOP -> {
                 timerJob?.cancel()
                 sedentaryJob?.cancel()
-                val now = System.currentTimeMillis()
-                val db = (applicationContext as SoulTrackApp).database
-                CoroutineScope(Dispatchers.IO).launch {
-                    db.sessionDao().stopActiveSession(now)
-                }
                 val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
                 prefs.edit().putBoolean("is_running", false).apply()
                 notificationManager?.cancel(NOTIFICATION_ID)

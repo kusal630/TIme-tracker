@@ -242,6 +242,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadDayData(_selectedDate.value)
     }
 
+    fun addCustomCategory(name: String, onCreated: (Long) -> Unit) {
+        viewModelScope.launch {
+            val category = CategoryEntity(
+                name = name.trim(),
+                type = "PRODUCTIVE",
+                growthContribution = "MEDIUM",
+                color = 0xFF757575,
+                icon = "custom"
+            )
+            val id = categoryRepo.insert(category)
+            onCreated(id)
+        }
+    }
+
     fun dismissInsight(id: Long) {
         viewModelScope.launch {
             insightRepo.dismiss(id)

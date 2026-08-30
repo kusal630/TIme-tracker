@@ -42,6 +42,7 @@ class TimerForegroundService : Service() {
     private var sedentaryReminderCount: Int = 0
     private var isPomodoroSession: Boolean = false
     private var wastedWarningJob: Job? = null
+    private var breakReminderJob: Job? = null
     private var notificationManager: NotificationManager? = null
     private var timerJob: Job? = null
 
@@ -130,6 +131,9 @@ class TimerForegroundService : Service() {
         startNotificationUpdates()
         if (!isPomodoroSession) {
             scheduleSedentaryReminder()
+            if (categoryType in listOf("PRODUCTIVE", "LEARNING", "EXERCISE")) {
+                scheduleBreakReminder()
+            }
         }
         if (categoryType == "WASTED") {
             scheduleWastedWarning()
@@ -325,12 +329,55 @@ class TimerForegroundService : Service() {
         notificationManager?.notify(SEDENTARY_NOTIFICATION_ID + 10, notification)
     }
 
+    private fun scheduleBreakReminder() {
+        breakReminderJob?.cancel()
+        breakReminderJob = scope.launch {
+            delay(45 * 60 * 1000L)
+            if (!isActive) return@launch
+            showBreakReminder()
+        }
+    }
+
+    private fun showBreakReminder() {
+        val elapsed = (System.currentTimeMillis() - startTime) / 60000
+        val reminders = listOf(
+            "You've been working for $elapsed minutes. Time for a break!",
+            "Great focus session! Consider taking a short break to recharge.",
+            "You've been at it for a while. A quick break boosts productivity.",
+            "Stretch break time! Your body and mind will thank you.",
+            "You've earned a break. Step away for a few minutes.",
+            "Long focus sessions reduce quality. Take a 5-10 minute break."
+        )
+
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_SEDENTARY)
+            .setContentTitle("Take a Break!")
+            .setContentText(reminders.random())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(reminders.random()))
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+
+        notificationManager?.notify(SEDENTARY_NOTIFICATION_ID + 30, notification)
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         timerJob?.cancel()
         sedentaryJob?.cancel()
         wastedWarningJob?.cancel()
+        breakReminderJob?.cancel()
         val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
         prefs.edit().putBoolean("is_running", false).apply()
         notificationManager?.cancel(NOTIFICATION_ID)

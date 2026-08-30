@@ -23,21 +23,35 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_title"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         android:text="Ready to focus"
         android:textColor="#B0FFFFFF"
         android:textSize="12sp" />
 
     <TextView
-        android:id="@+id/widget_pom_timer"
+        android:id="@+id/widget_pom_duration"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_status"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="2dp"
+        android:text="25 min"
+        android:textColor="#80FFFFFF"
+        android:textSize="10sp"
+        android:background="@drawable/widget_button_background"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="2dp" />
+
+    <TextView
+        android:id="@+id/widget_pom_timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_pom_duration"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="8dp"
         android:text="25:00"
         android:textColor="#FFFFFF"
-        android:textSize="48sp"
+        android:textSize="44sp"
         android:textStyle="bold"
         android:fontFamily="monospace" />
 
@@ -47,8 +61,8 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/widget_pom_timer"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="6dp"
-        android:text="Sessions: 0"
+        android:layout_marginTop="4dp"
+        android:text="Session 0/4"
         android:textColor="#80FFFFFF"
         android:textSize="11sp" />
 
@@ -65,25 +79,40 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_background"
-            android:paddingHorizontal="28dp"
+            android:paddingHorizontal="22dp"
             android:paddingVertical="10dp"
             android:text="START"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
-            android:layout_marginEnd="10dp" />
+            android:layout_marginEnd="6dp" />
+
+        <TextView
+            android:id="@+id/widget_pom_btn_skip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_button_background"
+            android:paddingHorizontal="18dp"
+            android:paddingVertical="10dp"
+            android:text="SKIP"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="6dp"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/widget_pom_btn_stop"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_stop_background"
-            android:paddingHorizontal="28dp"
+            android:paddingHorizontal="22dp"
             android:paddingVertical="10dp"
             android:text="STOP"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
+            android:layout_marginEnd="6dp"
             android:visibility="gone" />
 
         <TextView
@@ -91,11 +120,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_button_background"
-            android:paddingHorizontal="28dp"
+            android:paddingHorizontal="22dp"
             android:paddingVertical="10dp"
             android:text="RESET"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:visibility="gone" />
     </LinearLayout>

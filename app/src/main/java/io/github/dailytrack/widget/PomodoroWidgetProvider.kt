@@ -35,7 +35,13 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
         const val ACTION_START = "io.github.dailytrack.ACTION_POM_WIDGET_START"
         const val ACTION_STOP = "io.github.dailytrack.ACTION_POM_WIDGET_STOP"
         const val ACTION_RESET = "io.github.dailytrack.ACTION_POM_WIDGET_RESET"
+        const val ACTION_SKIP = "io.github.dailytrack.ACTION_POM_WIDGET_SKIP"
+        const val ACTION_CYCLE_DURATION = "io.github.dailytrack.ACTION_POM_WIDGET_CYCLE_DURATION"
         const val ACTION_UPDATE = "io.github.dailytrack.ACTION_POM_WIDGET_UPDATE"
+
+        val WORK_DURATIONS = intArrayOf(25, 30, 45, 60)
+        val BREAK_DURATIONS = intArrayOf(5, 5, 10, 15)
+        val LONG_BREAK_DURATIONS = intArrayOf(15, 15, 20, 30)
 
         fun updateWidgets(context: Context) {
             val intent = Intent(context, PomodoroWidgetProvider::class.java).apply {
@@ -70,16 +76,20 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
 
                 val prefs = context.getSharedPreferences("pom_widget_prefs", Context.MODE_PRIVATE)
                 val startTime = System.currentTimeMillis()
-                val duration = 25
+                val durationIndex = prefs.getInt("duration_index", 0)
+                val duration = WORK_DURATIONS[durationIndex]
+                val breakDuration = BREAK_DURATIONS[durationIndex]
+                val longBreakDuration = LONG_BREAK_DURATIONS[durationIndex]
+                val sessionNumber = prefs.getInt("session_number", 0)
 
                 val serviceIntent = Intent(context, PomodoroForegroundService::class.java).apply {
                     putExtra(PomodoroForegroundService.EXTRA_START_TIME, startTime)
                     putExtra(PomodoroForegroundService.EXTRA_WORK_DURATION, duration)
-                    putExtra(PomodoroForegroundService.EXTRA_BREAK_DURATION, 5)
-                    putExtra(PomodoroForegroundService.EXTRA_LONG_BREAK_DURATION, 15)
+                    putExtra(PomodoroForegroundService.EXTRA_BREAK_DURATION, breakDuration)
+                    putExtra(PomodoroForegroundService.EXTRA_LONG_BREAK_DURATION, longBreakDuration)
                     putExtra(PomodoroForegroundService.EXTRA_TODO_TITLE, "Quick Focus")
                     putExtra(PomodoroForegroundService.EXTRA_IS_BREAK, false)
-                    putExtra(PomodoroForegroundService.EXTRA_SESSION_NUMBER, 0)
+                    putExtra(PomodoroForegroundService.EXTRA_SESSION_NUMBER, sessionNumber)
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(serviceIntent)
@@ -108,7 +118,10 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
                 }
 
                 val prefs = context.getSharedPreferences("pom_widget_prefs", Context.MODE_PRIVATE)
-                prefs.edit().putBoolean("is_running", false).apply()
+                prefs.edit()
+                    .putBoolean("is_running", false)
+                    .putBoolean("is_break", false)
+                    .apply()
 
                 updateAllWidgets(context)
             }
@@ -127,9 +140,73 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
                 prefs.edit()
                     .putBoolean("is_running", false)
                     .putLong("start_time", 0L)
-                    .putInt("duration", 25)
+                    .putInt("duration", WORK_DURATIONS[prefs.getInt("duration_index", 0)])
                     .putBoolean("is_break", false)
+                    .putInt("session_number", 0)
                     .apply()
+
+                updateAllWidgets(context)
+            }
+
+            ACTION_SKIP -> {
+                val prefs = context.getSharedPreferences("pom_widget_prefs", Context.MODE_PRIVATE)
+                val isBreak = prefs.getBoolean("is_break", false)
+
+                val stopIntent = Intent(context, PomodoroForegroundService::class.java).apply {
+                    action = PomodoroForegroundService.ACTION_STOP
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(stopIntent)
+                } else {
+                    context.startService(stopIntent)
+                }
+
+                if (isBreak) {
+                    prefs.edit()
+                        .putBoolean("is_running", false)
+                        .putBoolean("is_break", false)
+                        .apply()
+                } else {
+                    val sessionNumber = prefs.getInt("session_number", 0) + 1
+                    val isLongBreak = sessionNumber % 4 == 0
+                    val breakDuration = if (isLongBreak) {
+                        LONG_BREAK_DURATIONS[prefs.getInt("duration_index", 0)]
+                    } else {
+                        BREAK_DURATIONS[prefs.getInt("duration_index", 0)]
+                    }
+
+                    val breakStart = System.currentTimeMillis()
+                    val serviceIntent = Intent(context, PomodoroForegroundService::class.java).apply {
+                        putExtra(PomodoroForegroundService.EXTRA_START_TIME, breakStart)
+                        putExtra(PomodoroForegroundService.EXTRA_WORK_DURATION, prefs.getInt("duration", 25))
+                        putExtra(PomodoroForegroundService.EXTRA_BREAK_DURATION, breakDuration)
+                        putExtra(PomodoroForegroundService.EXTRA_LONG_BREAK_DURATION, LONG_BREAK_DURATIONS[prefs.getInt("duration_index", 0)])
+                        putExtra(PomodoroForegroundService.EXTRA_IS_BREAK, true)
+                        putExtra(PomodoroForegroundService.EXTRA_SESSION_NUMBER, sessionNumber)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent)
+                    } else {
+                        context.startService(serviceIntent)
+                    }
+
+                    prefs.edit()
+                        .putBoolean("is_running", true)
+                        .putLong("start_time", breakStart)
+                        .putInt("duration", breakDuration)
+                        .putBoolean("is_break", true)
+                        .putInt("session_number", sessionNumber)
+                        .apply()
+                }
+
+                updateAllWidgets(context)
+            }
+
+            ACTION_CYCLE_DURATION -> {
+                val prefs = context.getSharedPreferences("pom_widget_prefs", Context.MODE_PRIVATE)
+                var index = prefs.getInt("duration_index", 0)
+                index = (index + 1) % WORK_DURATIONS.size
+                prefs.edit().putInt("duration_index", index).apply()
 
                 updateAllWidgets(context)
             }
@@ -161,7 +238,12 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
         val startTime = prefs.getLong("start_time", 0L)
         val duration = prefs.getInt("duration", 25)
         val isBreak = prefs.getBoolean("is_break", false)
-        val workColor = prefs.getInt("work_color", 0xFFE94560.toInt())
+        val durationIndex = prefs.getInt("duration_index", 0)
+        val sessionNumber = prefs.getInt("session_number", 0)
+        val workColor = 0xFFE94560.toInt()
+
+        views.setTextViewText(R.id.widget_pom_session_count, "Session $sessionNumber/4")
+        views.setTextViewText(R.id.widget_pom_duration, "${WORK_DURATIONS[durationIndex]} min")
 
         if (isRunning && startTime > 0) {
             val elapsed = System.currentTimeMillis() - startTime
@@ -172,12 +254,16 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
             val timeStr = String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
 
             views.setTextViewText(R.id.widget_pom_timer, timeStr)
-            views.setTextViewText(R.id.widget_pom_status, if (isBreak) "Break Time" else "Focusing...")
-            views.setViewVisibility(R.id.widget_pom_btn_start, android.view.View.GONE)
-            views.setViewVisibility(R.id.widget_pom_btn_stop, android.view.View.VISIBLE)
-            views.setViewVisibility(R.id.widget_pom_btn_reset, android.view.View.VISIBLE)
 
-            if (!isBreak) {
+            if (isBreak) {
+                val isLongBreak = sessionNumber % 4 == 0
+                views.setTextViewText(
+                    R.id.widget_pom_status,
+                    if (isLongBreak) "Long Break" else "Short Break"
+                )
+                views.setTextColor(R.id.widget_pom_timer, 0xFFFFAB40.toInt())
+            } else {
+                views.setTextViewText(R.id.widget_pom_status, "Focusing...")
                 val progress = (elapsed.toFloat() / totalMillis.toFloat()).coerceIn(0f, 1f)
                 val fromR = android.graphics.Color.red(workColor).toFloat()
                 val fromG = android.graphics.Color.green(workColor).toFloat()
@@ -190,16 +276,22 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
                 val b = (fromB + (toB - fromB) * progress).toInt()
                 val timerColor = android.graphics.Color.rgb(r.coerceIn(0, 255), g.coerceIn(0, 255), b.coerceIn(0, 255))
                 views.setTextColor(R.id.widget_pom_timer, timerColor)
-            } else {
-                views.setTextColor(R.id.widget_pom_timer, 0xFFFFAB40.toInt())
             }
+
+            views.setViewVisibility(R.id.widget_pom_btn_start, android.view.View.GONE)
+            views.setViewVisibility(R.id.widget_pom_btn_skip, android.view.View.VISIBLE)
+            views.setViewVisibility(R.id.widget_pom_btn_stop, android.view.View.VISIBLE)
+            views.setViewVisibility(R.id.widget_pom_btn_reset, android.view.View.GONE)
+            views.setViewVisibility(R.id.widget_pom_duration, android.view.View.GONE)
         } else {
-            views.setTextViewText(R.id.widget_pom_timer, "25:00")
+            views.setTextViewText(R.id.widget_pom_timer, String.format(java.util.Locale.US, "%02d:00", WORK_DURATIONS[durationIndex]))
             views.setTextViewText(R.id.widget_pom_status, "Ready to focus")
+            views.setTextColor(R.id.widget_pom_timer, android.graphics.Color.WHITE)
             views.setViewVisibility(R.id.widget_pom_btn_start, android.view.View.VISIBLE)
+            views.setViewVisibility(R.id.widget_pom_btn_skip, android.view.View.GONE)
             views.setViewVisibility(R.id.widget_pom_btn_stop, android.view.View.GONE)
             views.setViewVisibility(R.id.widget_pom_btn_reset, android.view.View.GONE)
-            views.setTextColor(R.id.widget_pom_timer, android.graphics.Color.WHITE)
+            views.setViewVisibility(R.id.widget_pom_duration, android.view.View.VISIBLE)
         }
 
         val startIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
@@ -211,6 +303,16 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_pom_btn_start, startPendingIntent)
+
+        val skipIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
+            action = ACTION_SKIP
+            component = ComponentName(context, PomodoroWidgetProvider::class.java)
+        }
+        val skipPendingIntent = android.app.PendingIntent.getBroadcast(
+            context, 15, skipIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_pom_btn_skip, skipPendingIntent)
 
         val stopIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
             action = ACTION_STOP
@@ -231,6 +333,16 @@ class PomodoroWidgetProvider : AppWidgetProvider() {
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_pom_btn_reset, resetPendingIntent)
+
+        val durationIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
+            action = ACTION_CYCLE_DURATION
+            component = ComponentName(context, PomodoroWidgetProvider::class.java)
+        }
+        val durationPendingIntent = android.app.PendingIntent.getBroadcast(
+            context, 16, durationIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        views.setOnClickPendingIntent(R.id.widget_pom_duration, durationPendingIntent)
 
         val rootClickIntent = Intent(context, PomodoroWidgetProvider::class.java).apply {
             action = ACTION_UPDATE

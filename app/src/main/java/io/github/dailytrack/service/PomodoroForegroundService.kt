@@ -162,6 +162,7 @@ class PomodoroForegroundService : Service() {
         }
         startNotificationUpdates()
         scheduleSedentaryReminder()
+        scheduleEyeBlinkReminder()
         PomodoroWidgetProvider.updateWidgets(this)
     }
 
@@ -626,6 +627,47 @@ class PomodoroForegroundService : Service() {
             .build()
 
         notificationManager?.notify(SEDENTARY_NOTIFICATION_ID, notification)
+    }
+
+    private fun scheduleEyeBlinkReminder() {
+        scope.launch {
+            delay(20_000L)
+            if (isActive && isBreak) {
+                showEyeBlinkNotification()
+            }
+        }
+    }
+
+    private fun showEyeBlinkNotification() {
+        val tips = listOf(
+            "Blink your eyes 20 times to reduce dryness and strain.",
+            "Close your eyes for 10 seconds, then focus on something far away.",
+            "Look at something 20 feet away for 20 seconds (20-20-20 rule).",
+            "Gently press your closed eyelids for 5 seconds, then release.",
+            "Roll your eyes clockwise 5 times, then counter-clockwise 5 times.",
+            "Place your palms over your eyes for 30 seconds of darkness rest.",
+            "Focus on a distant object for 15 seconds, then something close. Repeat 3 times."
+        )
+
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_SEDENTARY)
+            .setContentTitle("Eye Care Break")
+            .setContentText(tips.random())
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+
+        notificationManager?.notify(SEDENTARY_NOTIFICATION_ID + 20, notification)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

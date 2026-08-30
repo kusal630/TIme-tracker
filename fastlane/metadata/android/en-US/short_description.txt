@@ -1,1 +1,1 @@
-Offline-first life tracking with timer, pomodoro, todos, and growth insights. No internet, no accounts, fully private.
+Offline life tracker for time, habits, mood, sleep and growth

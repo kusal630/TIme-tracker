@@ -141,3 +141,13 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
 }
+
+// Local signing - safe for F-Droid
+apply(from = rootProject.file("signing.gradle"))
+
+android {
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+}

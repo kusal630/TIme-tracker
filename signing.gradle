@@ -1,0 +1,21 @@
+def keystorePropsFile = rootProject.file("keystore.properties")
+if (keystorePropsFile.exists()) {
+    def props = new Properties()
+    props.load(new FileInputStream(keystorePropsFile))
+
+    android {
+        signingConfigs {
+            release {
+                storeFile file(props.storeFile)
+                storePassword props.storePassword
+                keyAlias props.keyAlias
+                keyPassword props.keyPassword
+            }
+        }
+        buildTypes {
+            release {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
